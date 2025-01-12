@@ -45,6 +45,17 @@ class RiemannianNavigation(FinslerManifold):
                            v:Array,
                            )->Array:
         
+        return lax.cond(jnp.linalg.norm(v)<1e-8,
+                        lambda *_: jnp.eye(len(v)),
+                        self.fundamental_tensor2,
+                        z,
+                        v)
+    
+    def fundamental_tensor2(self,
+                            z:Array,
+                            v:Array,
+                            )->Array:
+        
         g = self.RM.G(z)
         force = self.force_fun(z)
         
@@ -53,19 +64,30 @@ class RiemannianNavigation(FinslerManifold):
         
         a = g*lam+jnp.einsum('i,j->ij', f, f)*(lam**2)
         b = -f*lam
-        
         inner = jnp.sqrt(jnp.einsum('ij,i,j->', a, v, v))
         l = jnp.dot(a, v)/inner
         
         gv = (1.0+jnp.dot(b, v)/inner)*(a-jnp.einsum('i,j->ij', l, l))\
             +jnp.einsum('i,j->ij', b+l, b+l)
-        
+
         return 0.5*gv
     
     def metric(self,
                z:Array,
                v:Array,
                )->Array:
+        
+        return lax.cond(jnp.linalg.norm(v)<1e-8,
+                        lambda *_: 0.0,
+                        self.metric2,
+                        z,
+                        v,
+                        )
+    
+    def metric2(self,
+                z:Array,
+                v:Array,
+                )->Array:
         
         
         g = self.RM.G(z)

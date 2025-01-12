@@ -8,5 +8,4 @@ Created on Sat May 25 14:29:35 2024
 
 #%% Import modules
 
-from .jax_optimization import JAXOptimization
 from .georce import GEORCE

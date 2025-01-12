@@ -20,3 +20,4 @@ from .nEllipsoid import nEllipsoid
 from .nEuclidean import nEuclidean
 from .T2 import T2
 from .information_geometry import FisherRaoGeometry
+from .latent_space_manifold import LatentSpaceManifold

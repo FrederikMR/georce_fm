@@ -93,3 +93,30 @@ class FinslerManifold(ABC):
             
         return jnp.trapz(integrand, dx=dt)
     
+    def length_frechet(self, 
+                       zt:Array,
+                       z_obs:Array,
+                       z_mu:Array,
+                       )->Array:
+
+        path_length = vmap(self.path_length_frechet, in_axes=(0,0,None))(z_obs, zt, z_mu)
+        
+        return jnp.sum(path_length**2)
+    
+    def path_length_frechet(self, 
+                            zT:Array,
+                            zt:Array,
+                            mu:Array,
+                            )->Array:
+        
+        term1 = zt[0]-mu
+        val1 = self.F(mu, term1)
+        
+        term2 = zt[1:]-zt[:-1]
+        val2 = vmap(lambda z,v: self.F(z,v))(zt[:-1],term2)
+        
+        term3 = zT-zt[-1]
+        val3 = self.F(zt[-1],term3)
+        
+        return val1+jnp.sum(val2)+val3
+    

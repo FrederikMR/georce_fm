@@ -123,27 +123,27 @@ class RiemannianManifold(ABC):
                        z_mu:Array,
                        )->Array:
         
-        G0 = vmap(self.G)(z_obs)
-        path_length = vmap(self.path_length_frechet, in_axes=(0,0,None,0))(z_obs, zt, z_mu, G0)
+        G0 = self.G(z_mu)
+        path_length = vmap(self.path_length_frechet, in_axes=(0,0,None,None))(z_obs, zt, z_mu, G0)
         
         return jnp.sum(path_length**2)
     
     def path_length_frechet(self, 
-                            z0:Array,
+                            zT:Array,
                             zt:Array,
                             mu:Array,
                             G0:Array,
                             )->Array:
         
-        term1 = zt[0]-z0
+        term1 = zt[0]-mu
         val1 = jnp.sqrt(jnp.einsum('i,ij,j->', term1, G0, term1))
         
         term2 = zt[1:]-zt[:-1]
         Gt = vmap(lambda z: self.G(z))(zt)
         val2 = jnp.sqrt(jnp.einsum('ti,tij,tj->t', term2, Gt[:-1], term2))
         
-        term3 = mu-zt[-1]
+        term3 = zT-zt[-1]
         val3 = jnp.sqrt(jnp.einsum('i,ij,j->', term3, Gt[-1], term3))
         
-        return (val1+jnp.sum(val2)+val3)**2
+        return val1+jnp.sum(val2)+val3
     

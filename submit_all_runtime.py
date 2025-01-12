@@ -57,7 +57,6 @@ def generate_job(manifold, d, T, method, geometry):
         --jax_lr_rate 0.01 \\
         --tol 1e-4 \\
         --max_iter 1000 \\
-        --sub_iter 10 \\
         --line_search_iter 100 \\
         --number_repeats 5 \\
         --timing_repeats 5 \\
