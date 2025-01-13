@@ -183,8 +183,9 @@ def riemannian_runtime(method_name:str, N_data:int)->None:
     
     save_path = ''.join((save_path, method_name, 
                          f'_{args.manifold}', 
-                         f'_d={args.dim}', 
-                         f'_T={args.T}.pkl',
+                         f'_d={args.dim}',
+                         f'_batch={args.batch_size}'.replace('.', ''),
+                         '.pkl',
                          ))
     if os.path.exists(save_path):
         os.remove(save_path)
@@ -307,7 +308,8 @@ def finsler_runtime(method_name:str, N_data:int)->None:
     save_path = ''.join((save_path, method_name, 
                          f'_{args.manifold}', 
                          f'_d={args.dim}', 
-                         f'_T={args.T}.pkl',
+                         f'_batch={args.batch_size}'.replace('.', ''),
+                         '.pkl',
                          ))
     if os.path.exists(save_path):
         os.remove(save_path)
@@ -436,7 +438,8 @@ def lorentz_runtime(method_name:str, N_data:int)->None:
     save_path = ''.join((save_path, method_name, 
                          f'_{args.manifold}', 
                          f'_d={args.dim}', 
-                         f'_T={args.T}.pkl',
+                         f'_batch={args.batch_size}'.replace('.', ''),
+                         '.pkl',
                          ))
     if os.path.exists(save_path):
         os.remove(save_path)
