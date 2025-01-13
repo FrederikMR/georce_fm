@@ -90,7 +90,7 @@ def generate_data(manifold:str="celeba",
     elif manifold == "H2":
         M = H2()
         
-        z0 = jnp.zeros(2)+jnp.pi#jnp.array([1.0,1.0])
+        z0 = jnp.zeros(2)#+jnp.pi#jnp.array([1.0,1.0])
         z_obs = z0+jnp.sqrt(sigma)*jrandom.normal(key, shape=(N_data, M.dim))
 
     elif manifold == "Cylinder":

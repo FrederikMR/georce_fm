@@ -55,18 +55,20 @@ class GEORCE_FM(ABC):
     
     def energy(self, 
                zt:Array,
+               z_mu:Array,
                *args,
                )->Array:
 
         zt = zt.reshape(self.N, -1, self.dim)
         
-        path_energy = vmap(self.path_energy, in_axes=(0,0))(self.z_obs, zt)
+        path_energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zt, z_mu)
         
         return jnp.sum(self.wi*path_energy)
     
     def path_energy(self, 
                     z0:Array,
                     zt:Array,
+                    z_mu:Array,
                     )->Array:
         
         term1 = zt[0]-z0
@@ -75,7 +77,10 @@ class GEORCE_FM(ABC):
         term2 = zt[1:]-zt[:-1]
         val2 = vmap(lambda z,v: self.M.F(z,v)**2)(zt[:-1],-term2)
         
-        return val1+jnp.sum(val2)
+        term3 = z_mu-zt[-1]
+        val3 = self.M.F(zt[-1],-term3)**2
+        
+        return val1+jnp.sum(val2)+val3
     
     def Denergy(self,
                 zt:Array,
@@ -174,11 +179,15 @@ class GEORCE_FM(ABC):
                   zt:Array,
                   alpha:Array,
                   z_mu:Array,
+                  z_mu_hat:Array,
                   ut_hat:Array,
                   ut:Array,
                   )->Array:
+        
+        x_new = self.z_obs.reshape(-1,1,self.dim)+jnp.cumsum(alpha*ut_hat+(1-alpha)*ut, axis=1)
+        z_mu_new = alpha*z_mu_hat+(1.-alpha)*z_mu
 
-        return self.z_obs.reshape(-1,1,self.dim)+jnp.cumsum(alpha*ut_hat+(1-alpha)*ut, axis=1)
+        return (x_new, z_mu_new)
 
     def cond_fun(self, 
                  carry:Tuple[Array,Array,Array, Array, int],
@@ -201,7 +210,7 @@ class GEORCE_FM(ABC):
         mut = self.curve_update(z_mu_hat, g_cumsum, gt_inv, ginv_sum_inv, ht)
 
         ut_hat = -0.5*jnp.einsum('k,ktij,ktj->kti', 1./self.wi, gt_inv, mut)
-        tau = self.line_search(zt, z_mu_hat, ut_hat, ut)
+        tau = self.line_search(zt, z_mu, z_mu_hat, ut_hat, ut)
 
         ut = tau*ut_hat+(1.-tau)*ut
         z_mu = tau*z_mu_hat+(1.-tau)*z_mu
@@ -233,7 +242,7 @@ class GEORCE_FM(ABC):
         mut = self.curve_update(z_mu_hat, g_cumsum, gt_inv, ginv_sum_inv, ht)
 
         ut_hat = -0.5*jnp.einsum('k,ktij,ktj->kti', 1./self.wi, gt_inv, mut)
-        tau = self.line_search(zt, z_mu_hat, ut_hat, ut)
+        tau = self.line_search(zt, z_mu, z_mu_hat, ut_hat, ut)
 
         ut = tau*ut_hat+(1.-tau)*ut
         z_mu = tau*z_mu_hat+(1.-tau)*z_mu

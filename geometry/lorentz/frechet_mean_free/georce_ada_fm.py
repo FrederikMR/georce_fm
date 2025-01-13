@@ -57,9 +57,8 @@ class GEORCE_AdaFM(ABC):
         return "Adaptive Fréchet Estimation usign GEORCE"
     
     def random_batch(self,
+                     subkey,
                      )->Array:
-        
-        self.key, subkey = jrandom.split(self.key)
 
         batch_idx = jrandom.choice(subkey, 
                                    a=self.batch,
@@ -113,7 +112,7 @@ class GEORCE_AdaFM(ABC):
                  carry:Tuple,
                  )->Array:
         
-        z_mu, z_diff, Wk, Vk, idx = carry
+        z_mu, z_diff, Wk, Vk, conv_idx, idx = carry
 
         return (z_diff>self.tol) & (idx < self.max_iter)
     
@@ -123,7 +122,9 @@ class GEORCE_AdaFM(ABC):
         
         z_mu, z_diff, Wk1, Vk1, conv_idx, idx = carry
         
-        z_batch, w_batch = self.z_obs[self.batch_idx[idx]], self.wi[self.batch_idx[idx]]
+        batch_idx = self.random_batch(self.subkeys[idx])
+        
+        z_batch, w_batch = self.z_obs[batch_idx], self.wi[batch_idx]
         Wk2, Vk2 = self.georce_fm(self.t0, z_batch, w_batch)
         
         Wk_hat, Vk_hat, conv_idx = lax.cond(z_diff < self.conv_flag,
@@ -143,10 +144,12 @@ class GEORCE_AdaFM(ABC):
     
     def for_step(self,
                  carry:Array,
-                 batch_idx:Array,
+                 subkey,
                  )->Array:
         
         z_mu, z_diff, Wk1, Vk1, conv_idx = carry
+        
+        batch_idx = self.random_batch(subkey)
         
         z_batch, w_batch = self.z_obs[batch_idx], self.wi[batch_idx]
         Wk2, Vk2 = self.georce_fm(self.t0, z_batch, w_batch)
@@ -199,14 +202,15 @@ class GEORCE_AdaFM(ABC):
                                             line_search_params=self.line_search_params,
                                             ))
         
-        batch_idx = self.random_batch()
+        subkeys = jrandom.split(self.key, self.max_iter+1)
+        self.subkeys = subkeys[1:]
+        
+        batch_idx = self.random_batch(subkeys[0])
         z_batch, w_batch = self.z_obs[batch_idx], self.wi[batch_idx]
 
         Wk, Vk = self.georce_fm(self.t0, z_batch, w_batch)
         z_mu = jnp.mean(z_obs, axis=0)
         z_diff = self.conv_flag+1.
-        
-        self.batch_idx = jnp.stack([self.random_batch() for i in jnp.ones(self.max_iter)])
         
         if step == "while":
             z_mu, z_diff, Wk, Vk, conv_idx, idx = lax.while_loop(self.cond_fun, 
@@ -216,9 +220,8 @@ class GEORCE_AdaFM(ABC):
         elif step == "for":
             _, (z_mu, z_diff, Wk, Vk, conv_idx) = lax.scan(self.for_step, 
                                                            init=(z_mu, z_diff, Wk, Vk, 0),
-                                                           xs=self.batch_idx,
+                                                           xs=self.subkeys,
                                                            )
-            
             idx = self.max_iter
             
         else:
@@ -269,27 +272,31 @@ class GEORCE_FM_Step(ABC):
     
     def energy(self, 
                zs:Array,
+               z_mu:Array,
                *args,
                )->Array:
 
         zs = zs.reshape(self.N, -1, self.dim)
         
-        path_energy = vmap(self.path_energy, in_axes=(0,0))(self.z_obs, zs)
+        path_energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zs, z_mu)
         
         return jnp.sum(self.wi*path_energy)
     
     def path_energy(self, 
                     z0:Array,
                     zs:Array,
+                    z_mu:Array,
                     )->Array:
         
         us = jnp.vstack((zs[0]-z0,
                          zs[1:]-zs[:-1],
+                         z_mu-zs[-1],
                          ))
+
         ts = self.update_ts(z0, zs, us)
         
         val1 = self.M.F(self.t0, z0, -us[0])**2
-        val2 = vmap(lambda t,x,v: self.M.F(t,x,v)**2)(ts[:-2], zs[:-1], -us[1:])
+        val2 = vmap(lambda t,x,v: self.M.F(t,x,v)**2)(ts[:-1], zs, -us[1:])
 
         return val1+jnp.sum(val2)
     
@@ -437,11 +444,15 @@ class GEORCE_FM_Step(ABC):
                   zs:Array,
                   alpha:Array,
                   z_mu:Array,
+                  z_mu_hat:Array,
                   us_hat:Array,
                   us:Array,
                   )->Array:
+        
+        zs_new = self.z_obs.reshape(-1,1,self.dim)+jnp.cumsum(alpha*us_hat+(1-alpha)*us, axis=1)
+        z_mu_new = alpha*z_mu_hat+(1.-alpha)*z_mu
 
-        return self.z_obs.reshape(-1,1,self.dim)+jnp.cumsum(alpha*us_hat+(1-alpha)*us, axis=1)
+        return (zs_new, z_mu_new)
     
     def frechet_update(self,
                        Wk:Array,
@@ -477,7 +488,7 @@ class GEORCE_FM_Step(ABC):
         mus = self.curve_update(z_mu_hat, g_cumsum, gs_inv, ginv_sum_inv, hs, pis, Lus)
 
         us_hat = -0.5*jnp.einsum('k,ktij,ktj->kti', 1./self.wi, gs_inv, mus)
-        tau = self.line_search(zs, z_mu_hat, us_hat, us)
+        tau = self.line_search(zs, z_mu, z_mu_hat, us_hat, us)
 
         us = tau*us_hat+(1.-tau)*us
         z_mu = tau*z_mu_hat+(1.-tau)*z_mu

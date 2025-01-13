@@ -64,7 +64,8 @@ class FisherRaoGeometry(RiemannianManifold):
             self.Dp = self.invDupMat(params['n'])
         
         g, self.dim = self.get_metric()
-
+        
+        self.emb_dim = None
         super().__init__(G=g)
         
         return

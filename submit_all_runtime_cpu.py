@@ -24,13 +24,13 @@ def submit_job():
 
 #%% Generate jobs
 
-def generate_job(manifold, d, method, geometry, tol, batch_size, N_data):
+def generate_job(manifold, d, geometry, tol, batch_size):
 
     with open ('submit_runtime.sh', 'w') as rsh:
         rsh.write(f'''\
     #! /bin/bash
     #BSUB -q hpc
-    #BSUB -J {method}_{geometry[0]}{manifold}{d}
+    #BSUB -J {geometry[0]}{manifold}{d}
     #BSUB -W 24:00
     #BSUB -R "span[hosts=1]"
     #BSUB -R "select[model=XeonGold6226R]"
@@ -43,15 +43,13 @@ def generate_job(manifold, d, method, geometry, tol, batch_size, N_data):
 
     module swap python3/3.10.12
     
-    python3 runtime.py \\
+    python3 runtime_hpc.py \\
         --manifold {manifold} \\
         --geometry {geometry} \\
         --dim {d} \\
         --batch_size {batch_size} \\
-        --N_data {N_data} \\
         --T 100 \\
         --v0 1.5 \\
-        --method {method} \\
         --jax_lr_rate 0.01 \\
         --tol {tol} \\
         --max_iter 1000 \\
@@ -67,62 +65,17 @@ def generate_job(manifold, d, method, geometry, tol, batch_size, N_data):
 def loop_jobs(wait_time = 1.0):
     
     geomtries = ['Riemannian', 'Finsler'] #, "Lorentz"]
-    jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX
-    scipy_methods = ["BFGS", 'CG', 'dogleg', 'trust-ncg', 'trust-exact'] #scipy
-    methods = ['GEORCE_FM', 'euclidean'] + jax_methods + scipy_methods
+    batches = [1.0, 0.5, 0.1, 0.01]
 
-    N_data = 100
-    runs = {"Sphere": [[2,3,5,10,20,50,100,250,500,1000],1e-3],
-            "Ellipsoid": [[2,3,5,10,20,50,100,250,500,1000],1e-3],
-            "SPDN": [[2,3],1e-3],
-            "T2": [[2],1e-3],
-            "H2": [[2],1e-3],
-            "Gaussian": [[2],1e-3],
-            "Frechet": [[2],1e-3],
-            "Cauchy": [[2],1e-3],
-            "Pareto": [[2],1e-3],
-            "celeba": [[32],1e-3],
-            "svhn": [[32],1e-3],
-            "mnist": [[8],1e-3],
-            }
-
-    for geo in geomtries:
-        for man, vals in runs.items():
-            dims, tol = vals[0], vals[1]
-            for d in dims:
-                for m in methods:
-                    time.sleep(wait_time+np.abs(np.random.normal(0.0,1.,1)[0]))
-                    generate_job(man, d, m, geo, tol, 1.0, N_data)
-                    try:
-                        submit_job()
-                    except:
-                        time.sleep(100.0+np.abs(np.random.normal(0.0,1.,1)))
-                        try:
-                            submit_job()
-                        except:
-                            print(f"Job script with {geo}, {man}, {m}, {d}, {tol}, {N_data} failed!")
-                            
-#%% Loop adaptive jobs
-
-def loop_adaptive_jobs(wait_time = 1.0):
-    
-    geomtries = ['Riemannian', 'Finsler'] #, "Lorentz"]
-    jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX
-    jax_methods = [''.join(("ADA", jm)) for jm in jax_methods]
-    methods = ['GEORCE_AdaFM', 'euclidean'] + jax_methods
-    
-    N_data = 1_000
-    batches = [0.01, 0.05, 0.1, 0.5, 1.0]
-
-    runs = {"Sphere": [[2,3,5,10,20,50,100,250,500,1000],1e-3],
-            "Ellipsoid": [[2,3,5,10,20,50,100,250,500,1000],1e-3],
-            "SPDN": [[2,3],1e-3],
-            "T2": [[2],1e-3],
-            "H2": [[2],1e-3],
-            "Gaussian": [[2],1e-3],
-            "Frechet": [[2],1e-3],
-            "Cauchy": [[2],1e-3],
-            "Pareto": [[2],1e-3],
+    runs = {"Sphere": [[2,3,5,10,20,50,100],1e-4],
+            "Ellipsoid": [[2,3,5,10,20,50,100],1e-4],
+            "SPDN": [[2,3],1e-4],
+            "T2": [[2],1e-4],
+            "H2": [[2],1e-4],
+            "Gaussian": [[2],1e-4],
+            "Frechet": [[2],1e-4],
+            "Cauchy": [[2],1e-4],
+            "Pareto": [[2],1e-4],
             "celeba": [[32],1e-3],
             "svhn": [[32],1e-3],
             "mnist": [[8],1e-3],
@@ -133,21 +86,19 @@ def loop_adaptive_jobs(wait_time = 1.0):
             for man, vals in runs.items():
                 dims, tol = vals[0], vals[1]
                 for d in dims:
-                    for m in methods:
-                        time.sleep(wait_time+np.abs(np.random.normal(0.0,1.,1)[0]))
-                        generate_job(man, d, m, geo, tol, batch, N_data)
+                    time.sleep(wait_time+np.abs(np.random.normal(0.0,1.,1)[0]))
+                    generate_job(man, d, geo, tol, batch)
+                    try:
+                        submit_job()
+                    except:
+                        time.sleep(100.0+np.abs(np.random.normal(0.0,1.,1)))
                         try:
                             submit_job()
                         except:
-                            time.sleep(100.0+np.abs(np.random.normal(0.0,1.,1)))
-                            try:
-                                submit_job()
-                            except:
-                                print(f"Job script with {geo}, {man}, {m}, {d}, {tol}, {N_data} failed!")
+                            print(f"Job script with {geo}, {man}, {d}, {tol} failed!")
 
 #%% main
 
 if __name__ == '__main__':
     
     loop_jobs(1.0)
-    loop_adaptive_jobs(1.0)

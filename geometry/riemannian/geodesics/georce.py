@@ -97,7 +97,7 @@ class GEORCE(ABC):
                   ut:Array,
                   )->Array:
         
-        return self.z0+jnp.cumsum(alpha*ut_hat[:-1]+(1-alpha)*ut[:-1], axis=0)
+        return (self.z0+jnp.cumsum(alpha*ut_hat[:-1]+(1-alpha)*ut[:-1], axis=0),)
     
     def step(self,
              carry:Tuple[Array,Array],

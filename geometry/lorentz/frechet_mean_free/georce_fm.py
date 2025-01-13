@@ -59,11 +59,11 @@ class GEORCE_FM(ABC):
     
     def energy(self, 
                zs:Array,
+               z_mu:Array,
                *args,
                )->Array:
 
         zs = zs.reshape(self.N, -1, self.dim)
-        z_mu = args[0]
         
         path_energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zs, z_mu)
         
@@ -83,17 +83,17 @@ class GEORCE_FM(ABC):
         ts = self.update_ts(z0, zs, us)
         
         val1 = self.M.F(self.t0, z0, -us[0])**2
-        val2 = vmap(lambda t,x,v: self.M.F(t,x,v)**2)(ts[:-2], zs[:-1], -us[:-2])
+        val2 = vmap(lambda t,x,v: self.M.F(t,x,v)**2)(ts[:-1], zs, -us[1:])
 
         return val1+jnp.sum(val2)
     
     def energy_frechet(self, 
                        zs:Array,
+                       z_mu:Array,
                        *args,
                        )->Array:
 
         zs = zs.reshape(self.N, -1, self.dim)
-        z_mu = args[0]
         
         path_energy = vmap(self.path_energy_frechet, in_axes=(0,0,None))(self.z_obs, zs, z_mu)
         
@@ -109,11 +109,10 @@ class GEORCE_FM(ABC):
                          zs[1:]-zs[:-1],
                          z_mu-zs[-1],
                          ))
-
         ts = self.update_ts(z0, zs, us)
         
         val1 = self.M.F(self.t0, z0, -us[0])**2
-        val2 = vmap(lambda t,x,v: self.M.F(t,x,v)**2)(ts[:-1], zs, -us[:-1])
+        val2 = vmap(lambda t,x,v: self.M.F(t,x,v)**2)(ts[:-1], zs, -us[1:])
 
         return val1+jnp.sum(val2)
     
@@ -268,11 +267,15 @@ class GEORCE_FM(ABC):
                   zs:Array,
                   alpha:Array,
                   z_mu:Array,
+                  z_mu_hat:Array,
                   us_hat:Array,
                   us:Array,
                   )->Array:
+        
+        zs_new = self.z_obs.reshape(-1,1,self.dim)+jnp.cumsum(alpha*us_hat+(1-alpha)*us, axis=1)
+        z_mu_new = alpha*z_mu_hat+(1.-alpha)*z_mu
 
-        return self.z_obs.reshape(-1,1,self.dim)+jnp.cumsum(alpha*us_hat+(1-alpha)*us, axis=1)
+        return zs_new, z_mu_new
 
     def cond_fun(self, 
                  carry:Tuple[Array,Array,Array, Array, int],
@@ -305,7 +308,7 @@ class GEORCE_FM(ABC):
         mus = self.curve_update(z_mu_hat, g_cumsum, gs_inv, ginv_sum_inv, hs, pis, Lus)
 
         us_hat = -0.5*jnp.einsum('k,ktij,ktj->kti', 1./self.wi, gs_inv, mus)
-        tau = self.line_search(zs, z_mu_hat, us_hat, us)
+        tau = self.line_search(zs, z_mu, z_mu_hat, us_hat, us)
 
         us = tau*us_hat+(1.-tau)*us
         z_mu = tau*z_mu_hat+(1.-tau)*z_mu
@@ -356,7 +359,7 @@ class GEORCE_FM(ABC):
         mus = self.curve_update(z_mu_hat, g_cumsum, gs_inv, ginv_sum_inv, hs, pis, Lus)
 
         us_hat = -0.5*jnp.einsum('k,ktij,ktj->kti', 1./self.wi, gs_inv, mus)
-        tau = self.line_search(zs, z_mu_hat, us_hat, us)
+        tau = self.line_search(zs, z_mu, z_mu_hat, us_hat, us)
 
         us = tau*us_hat+(1.-tau)*us
         z_mu = tau*z_mu_hat+(1.-tau)*z_mu

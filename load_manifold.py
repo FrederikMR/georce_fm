@@ -40,6 +40,7 @@ def load_manifold(manifold:str="Euclidean",
                   ):
     
     load_path = ''.join((data_path, f'{manifold}/'))
+    rho = 0.5
     if manifold == "Euclidean":
         M = nEuclidean(dim=dim)
     if manifold == "SPDN":
@@ -167,4 +168,4 @@ def load_manifold(manifold:str="Euclidean",
         
     z_obs = jnp.load(''.join((load_path, f'z_obs_{dim}_{N_data}.npy')))
         
-    return z_obs, M
+    return z_obs, M, rho

@@ -125,7 +125,7 @@ class Backtracking(ABC):
         alpha, idx, *args = carry
         
         x_new = self.update_fun(self.x, alpha, *args)
-        obj = self.obj_fun(x_new, *args)
+        obj = self.obj_fun(*x_new, *args)
         
         bool_val = self.condition(x_new, obj, alpha, *args)
         

@@ -55,7 +55,8 @@ class GEORCE(ABC):
         us = jnp.vstack((zs[0]-self.z0,
                          zs[1:]-zs[:-1],
                          self.zT-zs[-1]
-                         ))
+                         ),
+                        )
         ts = self.update_ts(zs, us)
         
         val1 = self.M.F(self.t0, self.z0, us[0])**2
@@ -145,7 +146,7 @@ class GEORCE(ABC):
                   us:Array,
                   )->Array:
         
-        return self.z0+jnp.cumsum(alpha*us_hat[:-1]+(1-alpha)*us[:-1], axis=0)
+        return (self.z0+jnp.cumsum(alpha*us_hat[:-1]+(1-alpha)*us[:-1], axis=0),)
     
     def update_us(self,
                   gs_inv:Array,
