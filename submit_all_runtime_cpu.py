@@ -36,6 +36,7 @@ def generate_job(manifold, d, geometry, tol, batch_size):
     #BSUB -R "select[model=XeonGold6226R]"
     #BSUB -R "rusage[mem=10GB]"
     #BSUB -u fmry@dtu.dk
+    #BSUB -env "LSB_JOB_REPORT_MAIL=N"
     #BSUB -B
     #BSUB -N
     #BSUB -o sendmeemail/error_%J.out 

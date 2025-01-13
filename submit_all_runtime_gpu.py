@@ -14,7 +14,7 @@ import os
 
 import time
 
-#%% Submit job
+#%% Submit jobs
 
 def submit_job():
     
@@ -37,6 +37,7 @@ def generate_job(manifold, d, geometry, tol, batch_size):
     #BSUB -R "span[hosts=1]"
     #BSUB -R "rusage[mem=10GB]"
     #BSUB -u fmry@dtu.dk
+    #BSUB -env "LSB_JOB_REPORT_MAIL=N"
     #BSUB -B
     #BSUB -N
     #BSUB -o sendmeemail/error_%J.out 
