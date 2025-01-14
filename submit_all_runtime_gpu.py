@@ -26,11 +26,12 @@ def submit_job():
 
 def generate_job(manifold, d, m, geometry, tol, batch_size, N_data):
 
+    batch_name = f"{batch_size}".replace('.', '')
     with open ('submit_runtime.sh', 'w') as rsh:
         rsh.write(f'''\
     #! /bin/bash
     #BSUB -q gpuv100
-    #BSUB -J {geometry[0]}{manifold}{d}
+    #BSUB -J {geometry[0]}{manifold}{d}_{batch_name}_{m}
     #BSUB -n 4
     #BSUB -gpu "num=1:mode=exclusive_process"
     #BSUB -W 24:00
