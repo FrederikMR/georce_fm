@@ -61,11 +61,11 @@ def parse_args():
     # File-paths
     parser.add_argument('--manifold', default="Sphere",
                         type=str)
-    parser.add_argument('--geometry', default="Riemannian",
+    parser.add_argument('--geometry', default="Lorentz",
                         type=str)
     parser.add_argument('--dim', default=2,
                         type=int)
-    parser.add_argument('--batch_size', default=1.0,
+    parser.add_argument('--batch_size', default=0.1,
                         type=float)
     parser.add_argument('--N_data', default=100,
                         type=int)
@@ -73,7 +73,7 @@ def parse_args():
                         type=int)
     parser.add_argument('--v0', default=1.5,
                         type=float)
-    parser.add_argument('--method', default="GEORCE_FM",
+    parser.add_argument('--method', default="GEORCE_AdaFM",
                         type=str)
     parser.add_argument('--jax_lr_rate', default=0.01,
                         type=float)
@@ -240,7 +240,7 @@ def riemannian_runtime()->None:
     elif args.method == "GEORCE_AdaFM":
         FrechetMean = RGEORCE_AdaFM(M=M,
                                     init_fun=None,
-                                    alpha=0.9,
+                                    lam=0.48,
                                     T=args.T,
                                     sub_iter=5,
                                     max_iter=args.max_iter,
@@ -370,7 +370,7 @@ def finsler_runtime()->None:
     elif args.method == "GEORCE_AdaFM":
         FrechetMean = FGEORCE_AdaFM(M=M,
                                     init_fun=None,
-                                    alpha=0.9,
+                                    lam=0.48,
                                     T=args.T,
                                     sub_iter=5,
                                     max_iter=args.max_iter,
@@ -501,7 +501,7 @@ def lorentz_runtime()->None:
     elif args.method == "GEORCE_AdaFM":
         FrechetMean = LGEORCE_AdaFM(M=M,
                                     init_fun=None,
-                                    alpha=0.9,
+                                    lam=0.48,
                                     T=args.T,
                                     sub_iter=5,
                                     max_iter=args.max_iter,

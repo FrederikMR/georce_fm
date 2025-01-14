@@ -21,7 +21,7 @@ class GEORCE_AdaFM(ABC):
     def __init__(self,
                  M:FinslerManifold,
                  init_fun:Callable[[Array, Array, int], Array]=None,
-                 alpha:float=0.9,
+                 lam:float=0.48,
                  T:int=100,
                  tol:float=1e-4,
                  max_iter:int=1000,
@@ -32,7 +32,7 @@ class GEORCE_AdaFM(ABC):
                  )->None:
         
         self.M = M
-        self.alpha = alpha
+        self.lam = lam
         self.T = T
         self.tol = tol
         self.conv_flag = conv_flag
@@ -83,10 +83,12 @@ class GEORCE_AdaFM(ABC):
                        idx:int,
                        )->Tuple:
         
-        Wk_hat = self.alpha*Wk1+(1.-self.alpha)*Wk2
-        Vk_hat = self.alpha*Vk1+(1.-self.alpha)*Vk2
+        alpha = self.lam/(1.-self.lam**(idx+1))
         
-        return Wk_hat, Vk_hat, idx
+        Wk_hat = alpha*Wk1+(1.-alpha)*Wk2
+        Vk_hat = alpha*Vk1+(1.-alpha)*Vk2
+        
+        return Wk_hat, Vk_hat
     
     def update_convergence(self,
                            Wk1:Array,
@@ -99,7 +101,7 @@ class GEORCE_AdaFM(ABC):
         Wk_hat = Wk1*idx/(idx+1.)+Wk2/(idx+1.)
         Vk_hat = Vk1*idx/(idx+1.)+Vk2/(idx+1.)
         
-        return Wk_hat, Vk_hat, idx+1
+        return Wk_hat, Vk_hat
     
     def update_mean(self,
                     Wk_hat,
@@ -112,7 +114,7 @@ class GEORCE_AdaFM(ABC):
                  carry:Tuple,
                  )->Array:
         
-        z_mu, z_diff, Wk, Vk, conv_idx, idx = carry
+        z_mu, z_diff, Wk, Vk, idx = carry
 
         return (z_diff>self.tol) & (idx < self.max_iter)
     
@@ -120,54 +122,54 @@ class GEORCE_AdaFM(ABC):
                    carry:Array,
                    )->Array:
         
-        z_mu, z_diff, Wk1, Vk1, conv_idx, idx = carry
+        z_mu, z_diff, Wk1, Vk1, idx = carry
         
         batch_idx = self.random_batch(self.subkeys[idx])
         
         z_batch, w_batch = self.z_obs[batch_idx], self.wi[batch_idx]
         Wk2, Vk2, grad_norm = self.georce_fm(z_batch, w_batch)
         
-        Wk_hat, Vk_hat, conv_idx = lax.cond(z_diff < self.conv_flag,
-                                            lambda *args: self.update_convergence(*args),
-                                            lambda *args: self.update_default(*args),
-                                            Wk1,
-                                            Wk2,
-                                            Vk1,
-                                            Vk2,
-                                            conv_idx,
-                                            )
+        Wk_hat, Vk_hat = lax.cond(z_diff < self.conv_flag,
+                                  lambda *args: self.update_convergence(*args),
+                                  lambda *args: self.update_default(*args),
+                                  Wk1,
+                                  Wk2,
+                                  Vk1,
+                                  Vk2,
+                                  idx,
+                                  )
         
         z_mu_hat = self.update_mean(Wk_hat, Vk_hat)
         z_diff = jnp.linalg.norm(z_mu-z_mu_hat)
         
-        return (z_mu_hat, z_diff, Wk_hat, Vk_hat, conv_idx, idx+1)
+        return (z_mu_hat, z_diff, Wk_hat, Vk_hat, idx+1)
     
     def for_step(self,
                  carry:Array,
                  subkey,
                  )->Array:
         
-        z_mu, z_diff, Wk1, Vk1, conv_idx = carry
+        z_mu, z_diff, Wk1, Vk1, idx = carry
         
         batch_idx = self.random_batch(subkey)
         
         z_batch, w_batch = self.z_obs[batch_idx], self.wi[batch_idx]
         Wk2, Vk2, grad_norm = self.georce_fm(z_batch, w_batch)
         
-        Wk_hat, Vk_hat, conv_idx = lax.cond(z_diff < self.conv_flag,
-                                            lambda *args: self.update_convergence(*args),
-                                            lambda *args: self.update_default(*args),
-                                            Wk1,
-                                            Wk2,
-                                            Vk1,
-                                            Vk2,
-                                            conv_idx,
-                                            )
+        Wk_hat, Vk_hat = lax.cond(z_diff < self.conv_flag,
+                                  lambda *args: self.update_convergence(*args),
+                                  lambda *args: self.update_default(*args),
+                                  Wk1,
+                                  Wk2,
+                                  Vk1,
+                                  Vk2,
+                                  idx,
+                                  )
         
         z_mu_hat = self.update_mean(Wk_hat, Vk_hat)
         z_diff = jnp.linalg.norm(z_mu-z_mu_hat)
         
-        return ((z_mu_hat, z_diff, Wk_hat, Vk_hat, conv_idx),)*2
+        return ((z_mu_hat, z_diff, Wk_hat, Vk_hat, idx+1),)*2
 
     def __call__(self, 
                  z_obs:Array,
@@ -211,15 +213,15 @@ class GEORCE_AdaFM(ABC):
         z_diff = self.conv_flag+1.
         
         if step == "while":
-            z_mu, z_diff, Wk, Vk, conv_idx, idx = lax.while_loop(self.cond_fun, 
-                                                                 self.while_step, 
-                                                                 init_val=(z_mu, z_diff, Wk, Vk, 0, 0),
-                                                                 )
+            z_mu, z_diff, Wk, Vk, idx = lax.while_loop(self.cond_fun, 
+                                                       self.while_step, 
+                                                       init_val=(z_mu, z_diff, Wk, Vk, 0),
+                                                       )
         elif step == "for":
-            _, (z_mu, z_diff, Wk, Vk, conv_idx) = lax.scan(self.for_step, 
-                                                           init=(z_mu, z_diff, Wk, Vk, 0),
-                                                           xs=self.subkeys,
-                                                           )
+            _, (z_mu, z_diff, Wk, Vk, idx) = lax.scan(self.for_step, 
+                                                      init=(z_mu, z_diff, Wk, Vk, 0),
+                                                      xs=self.subkeys,
+                                                      )
             
             idx = self.max_iter
             
