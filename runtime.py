@@ -112,7 +112,6 @@ def estimate_method(FrechetMean, Geodesic, z_obs, M):
     print("\t-Geodesics computed")
     
     method['mu'] = z_mu
-    method['zt'] = zt
     method['iterations'] = idx
     method['max_iter'] = args.max_iter
     method['tol'] = args.tol
@@ -144,8 +143,6 @@ def estimate_lorentz(FrechetMean, Geodesic, z_obs, M):
     print("\t-Geodesics computed")
     
     method['mu'] = z_mu
-    method['ts'] = ts
-    method['zs'] = zs
     method['iterations'] = idx
     method['max_iter'] = args.max_iter
     method['tol'] = args.tol
@@ -218,7 +215,6 @@ def riemannian_runtime()->None:
         sum_geodesic_dist = M.length_frechet(zt_geodesic, z_obs, z_mu)
         
         method['mu'] = z_mu
-        method['zt'] = zt_geodesic
         method['iterations'] = None
         method['max_iter'] = None
         method['tol'] = None
@@ -348,7 +344,6 @@ def finsler_runtime()->None:
         sum_geodesic_dist = M.length_frechet(zt_geodesic, z_obs, z_mu)
         
         method['mu'] = z_mu
-        method['zt'] = zt_geodesic
         method['iterations'] = None
         method['max_iter'] = None
         method['tol'] = None
@@ -477,8 +472,6 @@ def lorentz_runtime()->None:
         sum_geodesic_dist = M.length_frechet(0.0, ts_geodesic, zs_geodesic, z_obs, z_mu)
         
         method['mu'] = z_mu
-        method['ts'] = ts_geodesic
-        method['zs'] = zs_geodesic
         method['iterations'] = None
         method['max_iter'] = None
         method['tol'] = None
