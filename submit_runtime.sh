@@ -1,6 +1,6 @@
     #! /bin/bash
     #BSUB -q gpuv100
-    #BSUB -J Fmnist8_025_ADAadagrad
+    #BSUB -J FHyperParaboloid2_025_ADAadagrad
     #BSUB -n 4
     #BSUB -gpu "num=1:mode=exclusive_process"
     #BSUB -W 24:00
@@ -18,16 +18,16 @@
     module swap python3/3.10.12
     
     python3 runtime.py \
-        --manifold mnist \
+        --manifold HyperParaboloid \
         --geometry Finsler \
-        --dim 8 \
+        --dim 2 \
         --batch_size 0.25 \
         --N_data 1000 \
         --T 100 \
         --v0 1.5 \
         --method ADAadagrad \
         --jax_lr_rate 0.01 \
-        --tol 0.001 \
+        --tol 0.0001 \
         --max_iter 1000 \
         --number_repeats 5 \
         --timing_repeats 5 \
