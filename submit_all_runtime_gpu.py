@@ -92,8 +92,7 @@ def loop_fixed_jobs(wait_time = 1.0):
             }
     
     runs = {
-            "Paraboloid": [[2], 1e-4],
-            "HyperParaboloid": [[2], 1e-4],
+            "HyperbolicParaboloid": [[2], 1e-4],
             }
     
     jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX
@@ -140,8 +139,7 @@ def loop_adaptive_jobs(wait_time = 1.0):
             }
     
     runs = {
-            "Paraboloid": [[2], 1e-4],
-            "HyperParaboloid": [[2], 1e-4],
+            "HyperbolicParaboloid": [[2], 1e-4],
             }
     
     jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX
