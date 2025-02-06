@@ -71,8 +71,14 @@ def generate_data(manifold:str="celeba",
     elif manifold == "Paraboloid":
         M = nParaboloid(dim=dim)
         
-        z0 = jnp.zeros(dim)
-        z_obs = z0+jnp.sqrt(sigma)*jrandom.normal(key, shape=(N_data, M.dim))
+        z0 = jnp.zeros(dim)+1.0
+        z_obs = z0+jnp.sqrt(0.1)*jrandom.normal(key, shape=(N_data, M.dim))
+        
+    elif manifold == "HyperbolicParaboloid":
+        M = HyperbolicParaboloid()
+        
+        z0 = jnp.zeros(dim)+1.0
+        z_obs = z0+jnp.sqrt(0.1)*jrandom.normal(key, shape=(N_data, M.dim))
 
     elif manifold == "Sphere":
         M = nSphere(dim=dim)
@@ -259,6 +265,8 @@ def generate_all_data(sigma:float=1.0,
     #sphere
     runs = {"Sphere": [2,3,5,10,20,50,100,250,500,1000],
             "Ellipsoid": [2,3,5,10,20,50,100,250,500,1000],
+            "Paraboloid": [2],
+            "HyperbolicParaboloid": [2],
             "SPDN": [2,3],
             "T2": [2],
             "H2": [2],

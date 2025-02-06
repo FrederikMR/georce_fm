@@ -80,6 +80,8 @@ def loop_fixed_jobs(wait_time = 1.0):
             "SPDN": [[2,3],1e-4],
             "T2": [[2],1e-4],
             "H2": [[2],1e-4],
+            "Paraboloid": [[2], 1e-4],
+            "HyperParaboloid": [[2], 1e-4],
             "Gaussian": [[2],1e-4],
             "Frechet": [[2],1e-4],
             "Cauchy": [[2],1e-4],
@@ -87,6 +89,11 @@ def loop_fixed_jobs(wait_time = 1.0):
             "celeba": [[32],1e-3],
             "svhn": [[32],1e-3],
             "mnist": [[8],1e-3],
+            }
+    
+    runs = {
+            "Paraboloid": [[2], 1e-4],
+            "HyperParaboloid": [[2], 1e-4],
             }
     
     jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX
@@ -121,6 +128,8 @@ def loop_adaptive_jobs(wait_time = 1.0):
             "SPDN": [[2,3],1e-4],
             "T2": [[2],1e-4],
             "H2": [[2],1e-4],
+            "Paraboloid": [[2], 1e-4],
+            "HyperParaboloid": [[2], 1e-4],
             "Gaussian": [[2],1e-4],
             "Frechet": [[2],1e-4],
             "Cauchy": [[2],1e-4],
@@ -128,6 +137,11 @@ def loop_adaptive_jobs(wait_time = 1.0):
             "celeba": [[32],1e-3],
             "svhn": [[32],1e-3],
             "mnist": [[8],1e-3],
+            }
+    
+    runs = {
+            "Paraboloid": [[2], 1e-4],
+            "HyperParaboloid": [[2], 1e-4],
             }
     
     jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX

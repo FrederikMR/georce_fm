@@ -59,13 +59,13 @@ from geometry.lorentz.frechet_mean_free import ScipyOptimization as LScipyOptimi
 def parse_args():
     parser = argparse.ArgumentParser()
     # File-paths
-    parser.add_argument('--manifold', default="Sphere",
+    parser.add_argument('--manifold', default="Paraboloid",
                         type=str)
     parser.add_argument('--geometry', default="Lorentz",
                         type=str)
     parser.add_argument('--dim', default=2,
                         type=int)
-    parser.add_argument('--batch_size', default=0.1,
+    parser.add_argument('--batch_size', default=1.0,
                         type=float)
     parser.add_argument('--N_data', default=100,
                         type=int)
@@ -73,7 +73,7 @@ def parse_args():
                         type=int)
     parser.add_argument('--v0', default=1.5,
                         type=float)
-    parser.add_argument('--method', default="GEORCE_AdaFM",
+    parser.add_argument('--method', default="GEORCE_FM",
                         type=str)
     parser.add_argument('--jax_lr_rate', default=0.01,
                         type=float)
@@ -292,6 +292,7 @@ def riemannian_runtime()->None:
     
     print(methods)
     print(jnp.mean(z_obs, axis=0))
+    print(jnp.max(z_obs))
     
     return
 
@@ -421,6 +422,7 @@ def finsler_runtime()->None:
     
     print(methods)
     print(jnp.mean(z_obs, axis=0))
+    print(jnp.max(z_obs))
         
     return
 

@@ -47,6 +47,8 @@ def load_manifold(manifold:str="Euclidean",
         M = SPDN(N=dim)
     elif manifold == "Paraboloid":
         M = nParaboloid(dim=dim)
+    elif manifold == "HyperbolicParaboloid":
+        M = HyperbolicParaboloid()
     elif manifold == "Sphere":
         M = nSphere(dim=dim)
     elif manifold == "Ellipsoid":
