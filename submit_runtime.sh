@@ -1,6 +1,6 @@
     #! /bin/bash
     #BSUB -q gpuv100
-    #BSUB -J FHyperParaboloid2_025_ADAadagrad
+    #BSUB -J FHyperbolicParaboloid2_025_ADAadagrad
     #BSUB -n 4
     #BSUB -gpu "num=1:mode=exclusive_process"
     #BSUB -W 24:00
@@ -18,7 +18,7 @@
     module swap python3/3.10.12
     
     python3 runtime.py \
-        --manifold HyperParaboloid \
+        --manifold HyperbolicParaboloid \
         --geometry Finsler \
         --dim 2 \
         --batch_size 0.25 \
