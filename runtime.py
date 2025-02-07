@@ -59,9 +59,9 @@ from geometry.lorentz.frechet_mean_free import ScipyOptimization as LScipyOptimi
 def parse_args():
     parser = argparse.ArgumentParser()
     # File-paths
-    parser.add_argument('--manifold', default="Paraboloid",
+    parser.add_argument('--manifold', default="Sphere",
                         type=str)
-    parser.add_argument('--geometry', default="Lorentz",
+    parser.add_argument('--geometry', default="Riemannian",
                         type=str)
     parser.add_argument('--dim', default=2,
                         type=int)

@@ -96,7 +96,7 @@ def generate_data(manifold:str="celeba",
     elif manifold == "H2":
         M = H2()
         
-        z0 = jnp.zeros(2)#+jnp.pi#jnp.array([1.0,1.0])
+        z0 = jnp.array([1.0,1.0])
         z_obs = z0+jnp.sqrt(sigma)*jrandom.normal(key, shape=(N_data, M.dim))
 
     elif manifold == "Cylinder":
@@ -263,8 +263,8 @@ def generate_all_data(sigma:float=1.0,
 
     N_data = [100, 1_000]
     #sphere
-    runs = {"Sphere": [2,3,5,10,20,50,100,250,500,1000],
-            "Ellipsoid": [2,3,5,10,20,50,100,250,500,1000],
+    runs = {"Sphere": [2,3,5,10,20,50,100],
+            "Ellipsoid": [2,3,5,10,20,50,100],
             "Paraboloid": [2],
             "HyperbolicParaboloid": [2],
             "SPDN": [2,3],
@@ -274,7 +274,25 @@ def generate_all_data(sigma:float=1.0,
             "Frechet": [2],
             "Cauchy": [2],
             "Pareto": [2],
-            "mnist": [8],
+            }
+    
+    for m,dims in runs.items():
+        for dim in dims:
+            print(f"Generating data for {m} with dimension {dim}")
+            for N in N_data:
+                generate_data(manifold=m,
+                              dim=dim,
+                              N_data=N,
+                              sigma=sigma,
+                              seed=seed,
+                              data_path=data_path,
+                              svhn_path=svhn_path,
+                              celeba_path=celeba_path,
+                              )
+                
+    N_data = [10, 100]
+    #sphere
+    runs = {"mnist": [8],
             "celeba": [32],
             "svhn": [32],
             }

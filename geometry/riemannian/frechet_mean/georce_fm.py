@@ -47,23 +47,40 @@ class GEORCE_FM(ABC):
         return "Geodesic Computation Object using Control Problem"
     
     def init_curve(self, 
-                   z_obs:Array, 
-                   z_mu:Array,
+                   z0:Array, 
+                   zT:Array,
                    )->Array:
         
-        return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
+        zt = self.init_fun(z0, zT, self.T)
+        total = jnp.vstack((z0, zt, zT))
+        ut = total[1:]-total[:-1]
+        
+        return zt, ut
     
     def energy(self, 
                zt:Array,
                z_mu:Array,
                *args,
                )->Array:
+        
+        def step_energy(energy:Array,
+                        y:Tuple,
+                        )->Tuple:
+            
+            z, z_obs, w, G0 = y
+            
+            energy += w*self.path_energy(z_obs, z, G0, z_mu)
 
+            return (energy,)*2
+        
         zt = zt.reshape(self.N, -1, self.dim)
         
-        path_energy = vmap(self.path_energy, in_axes=(0,0,0,None))(self.z_obs, zt, self.G0, z_mu)
-        
-        return jnp.sum(self.wi*path_energy)
+        energy, _ = lax.scan(step_energy,
+                             init=0.0,
+                             xs=(zt, self.z_obs, self.wi, self.G0),
+                             )
+
+        return energy
     
     def path_energy(self, 
                     z0:Array,
@@ -115,8 +132,8 @@ class GEORCE_FM(ABC):
                       ut:Array,
                       )->Array:
         
-        Gt = vmap(vmap(self.M.G))(zt)
-        
+        Gt = vmap(self.M.G)(zt)
+
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', ut, Gt, ut)), Gt
     
     def gt(self,
@@ -124,8 +141,24 @@ class GEORCE_FM(ABC):
            ut:Array,
            )->Array:
         
-        return lax.stop_gradient(grad(self.inner_product, has_aux=True)(zt,ut))
-    
+        def step_gt(c:Tuple,
+                    y:Tuple,
+                    )->Tuple:
+            
+            z,u = y
+            
+            g, G = lax.stop_gradient(grad(self.inner_product, has_aux=True)(z, u))
+            
+            return ((g,G),)*2
+        
+        _, (gt, Gt) = lax.scan(step_gt,
+                               init=(jnp.zeros((self.T-1, self.dim), dtype=zt.dtype),
+                                     jnp.zeros((self.T-1, self.dim,self.dim), dtype=zt.dtype)),
+                               xs=(zt,ut),
+                               )
+        
+        return gt, Gt
+        
     def curve_update(self, 
                      z_mu:Array,
                      g_cumsum:Array, 
@@ -253,7 +286,7 @@ class GEORCE_FM(ABC):
         self.N, self.dim = self.z_obs.shape
         
         self.G0 = lax.stop_gradient(vmap(self.M.G)(self.z_obs))
-        self.Ginv0 = lax.stop_gradient(jnp.linalg.inv(self.G0))
+        self.Ginv0 = jnp.linalg.inv(self.G0)
         
         if wi is None:
             self.wi = jnp.ones(self.N)
@@ -263,9 +296,8 @@ class GEORCE_FM(ABC):
         if z_mu_init is None:
             z_mu_init = jnp.mean(self.z_obs, axis=0)
 
-        zt = self.init_curve(self.z_obs, z_mu_init)
-        ut = jnp.ones((self.N, self.T, self.dim), dtype=z_obs.dtype)*(z_mu_init-self.z_obs.reshape(-1,1,self.dim))/self.T
-        
+        zt, ut = vmap(self.init_curve, in_axes=(0,None))(self.z_obs, z_mu_init)
+
         if step == "while":
             gt, Gt = self.gt(zt, ut[:,1:])
             gt_inv = jnp.concatenate((self.Ginv0.reshape(self.N, -1, self.dim, self.dim), 
@@ -279,6 +311,8 @@ class GEORCE_FM(ABC):
                                                                init_val=(zt, ut, z_mu_init, gt, gt_inv, grad_norm, 0),
                                                                )
             
+            zt = zt[:,::-1]
+            
         elif step == "for":
                 
             _, val = lax.scan(self.for_step,
@@ -290,6 +324,9 @@ class GEORCE_FM(ABC):
             zt = val[0]
             grad_norm = None
             idx = self.max_iter
+            
+            zt = zt[:,:,::-1]
+            
         else:
             raise ValueError(f"step argument should be either for or while. Passed argument is {step}")
             

@@ -59,34 +59,46 @@ class ScipyOptimization(ABC):
         
         return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
     
-    def energy_frechet(self, 
-                       z:Array,
-                       )->Array:
+    def energy(self, 
+               z:Array,
+               )->Array:
+        
+        def step_energy(energy:Array,
+                        y:Tuple,
+                        )->Tuple:
+            
+            z, z_obs, w = y
+            
+            energy += w*self.path_energy(z_obs, z, z_mu)
+
+            return (energy,)*2
         
         zt = z[:-1]
         z_mu = z[-1]
-
         zt = zt.reshape(self.N, -1, self.dim)
-
-        path_energy = vmap(self.path_energy_frechet, in_axes=(0,0,None))(self.z_obs, zt, z_mu)
         
-        return jnp.sum(self.wi*path_energy)
+        energy, _ = lax.scan(step_energy,
+                             init=0.0,
+                             xs=(zt, self.z_obs, self.wi),
+                             )
+
+        return energy
     
-    def path_energy_frechet(self, 
-                            z0:Array,
-                            zt:Array,
-                            mu:Array,
-                            )->Array:
+    def path_energy(self, 
+                    z0:Array,
+                    zt:Array,
+                    z_mu:Array,
+                    )->Array:
         
         term1 = zt[0]-z0
         val1 = self.M.F(z0, -term1)**2
         
         term2 = zt[1:]-zt[:-1]
-        val2 = vmap(lambda z,u: self.M.F(z,u)**2)(zt[:-1], -term2)
-
-        term3 = mu-zt[-1]
-        val3 = self.M.F(zt[-1], -term3)**2
-
+        val2 = vmap(lambda z,v: self.M.F(z,v)**2)(zt[:-1],-term2)
+        
+        term3 = z_mu-zt[-1]
+        val3 = self.M.F(zt[-1],-term3)**2
+        
         return val1+jnp.sum(val2)+val3
     
     def obj_fun(self, 
@@ -95,7 +107,7 @@ class ScipyOptimization(ABC):
         
         z = z.reshape(-1,self.dim)
         
-        energy = self.energy_frechet(z)
+        energy = self.energy(z)
         
         return jnp.sum(energy)
     

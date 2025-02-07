@@ -47,23 +47,40 @@ class GEORCE_FM(ABC):
         return "Geodesic Computation Object using Control Problem"
     
     def init_curve(self, 
-                   z_obs:Array, 
-                   z_mu:Array,
+                   z0:Array, 
+                   zT:Array,
                    )->Array:
         
-        return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
+        zt = self.init_fun(z0, zT, self.T)
+        total = jnp.vstack((z0, zt, zT))
+        ut = total[1:]-total[:-1]
+        
+        return zt, ut
     
     def energy(self, 
                zt:Array,
                z_mu:Array,
                *args,
                )->Array:
+        
+        def step_energy(energy:Array,
+                        y:Tuple,
+                        )->Tuple:
+            
+            z, z_obs, w = y
+            
+            energy += w*self.path_energy(z_obs, z, z_mu)
 
+            return (energy,)*2
+        
         zt = zt.reshape(self.N, -1, self.dim)
         
-        path_energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zt, z_mu)
-        
-        return jnp.sum(self.wi*path_energy)
+        energy, _ = lax.scan(step_energy,
+                             init=0.0,
+                             xs=(zt, self.z_obs, self.wi),
+                             )
+
+        return energy
     
     def path_energy(self, 
                     z0:Array,
@@ -110,8 +127,8 @@ class GEORCE_FM(ABC):
                       ut:Array,
                       )->Array:
         
-        Gt = vmap(vmap(self.M.G))(zt,-ut)
-        
+        Gt = vmap(self.M.G)(zt,-ut)
+
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', ut, Gt, ut))
     
     def inner_product_h(self,
@@ -120,8 +137,8 @@ class GEORCE_FM(ABC):
                         ut:Array,
                         )->Array:
         
-        Gt = vmap(vmap(self.M.G))(zt,-ut)
-        
+        Gt = vmap(self.M.G)(zt,-ut)
+
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', u0, Gt, u0)), Gt
     
     def gt(self,
@@ -129,14 +146,45 @@ class GEORCE_FM(ABC):
            ut:Array,
            )->Array:
         
-        return lax.stop_gradient(grad(self.inner_product)(zt,ut))
+        def step_gt(g:Array,
+                    y:Tuple,
+                    )->Tuple:
+            
+            z,u = y
+            
+            g = lax.stop_gradient(grad(self.inner_product)(z, u))
+            
+            return (g,)*2
+        
+        _, gt = lax.scan(step_gt,
+                         init=jnp.zeros((self.T-1, self.dim), dtype=zt.dtype),
+                         xs=(zt,ut),
+                         )
+
+        return gt
     
     def ht(self,
            zt:Array,
            ut:Array,
            )->Array:
         
-        return lax.stop_gradient(grad(self.inner_product_h, argnums=2, has_aux=True)(zt,ut,ut))
+        def step_ht(c:Tuple,
+                    y:Tuple,
+                    )->Tuple:
+            
+            z,u = y
+            
+            h, G = lax.stop_gradient(grad(self.inner_product_h, argnums=2, has_aux=True)(z, u, u))
+            
+            return ((h,G),)*2
+        
+        _, (ht, Gt) = lax.scan(step_ht,
+                               init=(jnp.zeros((self.T, self.dim), dtype=zt.dtype),
+                                     jnp.zeros((self.T, self.dim,self.dim), dtype=zt.dtype)),
+                               xs=(zt,ut),
+                               )
+        
+        return ht, Gt
 
     def curve_update(self, 
                      z_mu:Array,
@@ -274,8 +322,7 @@ class GEORCE_FM(ABC):
         if z_mu_init is None:
             z_mu_init = jnp.mean(self.z_obs, axis=0)
 
-        zt = self.init_curve(self.z_obs, z_mu_init)
-        ut = jnp.ones((self.N, self.T, self.dim), dtype=z_obs.dtype)*(z_mu_init-self.z_obs.reshape(-1,1,self.dim))/self.T
+        zt, ut = vmap(self.init_curve, in_axes=(0,None))(self.z_obs, z_mu_init)
         
         if step == "while":
             gt = self.gt(zt, ut[:,1:])

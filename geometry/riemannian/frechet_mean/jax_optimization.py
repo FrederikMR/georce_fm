@@ -59,25 +59,36 @@ class JAXOptimization(ABC):
         
         return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
     
-    def energy_frechet(self, 
-                       z:Array,
-                       )->Array:
+    def energy(self, 
+               z:Array,
+               )->Array:
         
-        zt = z[:-1]
+        def step_energy(energy:Array,
+                        y:Tuple,
+                        )->Tuple:
+            
+            z, z_obs, w, G0 = y
+            
+            energy += w*self.path_energy(z_obs, z, G0, z_mu)
+
+            return (energy,)*2
+        
+        zt = z[:-1].reshape(self.N,-1,self.dim)
         z_mu = z[-1]
-
-        zt = zt.reshape(self.N, -1, self.dim)
-
-        path_energy = vmap(self.path_energy_frechet, in_axes=(0,0,None,0))(self.z_obs, zt, z_mu, self.G0)
         
-        return jnp.sum(self.wi*path_energy)
+        energy, _ = lax.scan(step_energy,
+                             init=0.0,
+                             xs=(zt, self.z_obs, self.wi, self.G0),
+                             )
+
+        return energy
     
-    def path_energy_frechet(self, 
-                            z0:Array,
-                            zt:Array,
-                            mu:Array,
-                            G0:Array,
-                            )->Array:
+    def path_energy(self, 
+                    z0:Array,
+                    zt:Array,
+                    G0:Array,
+                    z_mu:Array,
+                    )->Array:
         
         term1 = zt[0]-z0
         val1 = jnp.einsum('i,ij,j->', term1, G0, term1)
@@ -86,7 +97,7 @@ class JAXOptimization(ABC):
         Gt = vmap(lambda z: self.M.G(z))(zt)
         val2 = jnp.einsum('ti,tij,tj->t', term2, Gt[:-1], term2)
         
-        term3 = mu-zt[-1]
+        term3 = z_mu-zt[-1]
         val3 = jnp.einsum('i,ij,j->', term3, Gt[-1], term3)
         
         return val1+jnp.sum(val2)+val3
@@ -95,7 +106,7 @@ class JAXOptimization(ABC):
                 z:Array,
                 )->Array:
         
-        energy = self.energy_frechet(z)
+        energy = self.energy(z)
         
         return jnp.sum(energy)
     
@@ -179,6 +190,8 @@ class JAXOptimization(ABC):
             zt = z[:-1].reshape(self.N, -1, self.dim)
             z_mu = z[-1]
             
+            zt = zt[:,::-1]
+            
         elif step == "for":
             _, val = lax.scan(self.for_step,
                               init=(z, opt_state),
@@ -191,6 +204,9 @@ class JAXOptimization(ABC):
             
             grad = vmap(self.Dobj)(z)
             idx = self.max_iter
+            
+            zt = zt[:,:,::-1]
+            
         else:
             raise ValueError(f"step argument should be either for or while. Passed argument is {step}")
         

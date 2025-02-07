@@ -272,17 +272,41 @@ class GEORCE_FM_Step(ABC):
         
         return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
     
+    def init_curve(self, 
+                   z0:Array, 
+                   zT:Array,
+                   )->Array:
+        
+        zs = self.init_fun(z0, zT, self.T)
+        total = jnp.vstack((z0, zs, zT))
+        us = total[1:]-total[:-1]
+        
+        return zs, us
+    
     def energy(self, 
                zs:Array,
                z_mu:Array,
                *args,
                )->Array:
+        
+        def step_energy(energy:Array,
+                        y:Tuple,
+                        )->Tuple:
+            
+            z, z_obs, w = y
+            
+            energy += w*self.path_energy(z_obs, z, z_mu)
 
+            return (energy,)*2
+        
         zs = zs.reshape(self.N, -1, self.dim)
         
-        path_energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zs, z_mu)
-        
-        return jnp.sum(self.wi*path_energy)
+        energy, _ = lax.scan(step_energy,
+                             init=0.0,
+                             xs=(zs, self.z_obs, self.wi),
+                             )
+
+        return energy
     
     def path_energy(self, 
                     z0:Array,
@@ -315,8 +339,8 @@ class GEORCE_FM_Step(ABC):
                       us:Array,
                       )->Array:
         
-        Gs = vmap(vmap(self.M.G))(ts,zs,-us)
-        
+        Gs = vmap(self.M.G)(ts,zs,-us)
+
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', us, Gs, us))
     
     def inner_product_h(self,
@@ -326,8 +350,8 @@ class GEORCE_FM_Step(ABC):
                         us:Array,
                         )->Array:
         
-        Gs = vmap(vmap(self.M.G))(ts,zs,-us)
-        
+        Gs = vmap(self.M.G)(ts, zs,-us)
+
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', u0, Gs, u0)), Gs
     
     def gs(self,
@@ -336,15 +360,46 @@ class GEORCE_FM_Step(ABC):
            us:Array,
            )->Array:
         
-        return lax.stop_gradient(grad(self.inner_product, argnums=1)(ts,zs,us))
+        def step_gs(g:Array,
+                    y:Tuple,
+                    )->Tuple:
+            
+            t,z,u = y
+            
+            g = lax.stop_gradient(grad(self.inner_product, argnums=1)(t,z,u))
+            
+            return (g,)*2
+        
+        _, gs = lax.scan(step_gs,
+                         init=jnp.zeros((self.T-1, self.dim), dtype=zs.dtype),
+                         xs=(ts,zs,us),
+                         )
+
+        return gs
     
     def hs(self,
            ts:Array,
            zs:Array,
            us:Array,
            )->Array:
-
-        return lax.stop_gradient(grad(self.inner_product_h, argnums=3, has_aux=True)(ts,zs,us,us))
+        
+        def step_hs(c:Tuple,
+                    y:Tuple,
+                    )->Tuple:
+            
+            t,z,u = y
+            
+            h, G = lax.stop_gradient(grad(self.inner_product_h, argnums=3, has_aux=True)(t, z, u, u))
+            
+            return ((h,G),)*2
+        
+        _, (hs, Gs) = lax.scan(step_hs,
+                               init=(jnp.zeros((self.T, self.dim), dtype=zs.dtype),
+                                     jnp.zeros((self.T, self.dim,self.dim), dtype=zs.dtype)),
+                               xs=(ts,zs,us),
+                               )
+        
+        return hs, Gs
     
     def rs(self,
            ts:Array,
@@ -352,7 +407,22 @@ class GEORCE_FM_Step(ABC):
            us:Array,
            )->Array:
         
-        return lax.stop_gradient(grad(self.inner_product, argnums=0)(ts,zs,us))
+        def step_rs(g:Array,
+                    y:Tuple,
+                    )->Tuple:
+            
+            t,z,u = y
+            
+            r = lax.stop_gradient(grad(self.inner_product, argnums=0)(t,z,u))
+            
+            return (r,)*2
+        
+        _, rs = lax.scan(step_rs,
+                         init=jnp.zeros(self.T-1, dtype=zs.dtype),
+                         xs=(ts,zs,us),
+                         )
+
+        return rs
     
     def pi(self,
            rs:Array,
@@ -524,8 +594,7 @@ class GEORCE_FM_Step(ABC):
                                         **self.line_search_params,
                                         )
         
-        zs = self.init_curve(self.z_obs, z_mu_init)
-        us = jnp.ones((self.N, self.T, self.dim), dtype=z_obs.dtype)*(z_mu_init-self.z_obs.reshape(-1,1,self.dim))/self.T
+        zs, us = vmap(self.init_curve, in_axes=(0,None))(self.z_obs, z_mu_init)
         ts = vmap(self.update_ts)(self.z_obs, zs, us)
         
         gs = self.gs(ts[:,:-1], zs, us[:,1:])

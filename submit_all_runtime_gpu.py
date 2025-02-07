@@ -86,13 +86,34 @@ def loop_fixed_jobs(wait_time = 1.0):
             "Frechet": [[2],1e-4],
             "Cauchy": [[2],1e-4],
             "Pareto": [[2],1e-4],
-            "celeba": [[32],1e-3],
-            "svhn": [[32],1e-3],
-            "mnist": [[8],1e-3],
             }
     
-    runs = {
-            "HyperbolicParaboloid": [[2], 1e-4],
+    jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX
+    methods = ['GEORCE_FM', 'euclidean'] + jax_methods
+
+    for geo in geomtries:
+        for man, vals in runs.items():
+            dims, tol = vals[0], vals[1]
+            for d in dims:
+                for m in methods:
+                    time.sleep(wait_time+np.abs(np.random.normal(0.0,1.,1)[0]))
+                    generate_job(man, d, m, geo, tol, batch_size, N_data)
+                    try:
+                        submit_job()
+                    except:
+                        time.sleep(100.0+np.abs(np.random.normal(0.0,1.,1)))
+                        try:
+                            submit_job()
+                        except:
+                            print(f"Job script with {geo}, {man}, {d}, {tol} failed!")
+                            
+    geomtries = ['Riemannian', 'Finsler'] #, "Lorentz"]
+    N_data = 10
+    batch_size = 1.0
+
+    runs = {"celeba": [[32],1e-3],
+            "svhn": [[32],1e-3],
+            "mnist": [[8],1e-3],
             }
     
     jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX
@@ -133,13 +154,40 @@ def loop_adaptive_jobs(wait_time = 1.0):
             "Frechet": [[2],1e-4],
             "Cauchy": [[2],1e-4],
             "Pareto": [[2],1e-4],
-            "celeba": [[32],1e-3],
-            "svhn": [[32],1e-3],
-            "mnist": [[8],1e-3],
             }
     
     runs = {
             "HyperbolicParaboloid": [[2], 1e-4],
+            }
+    
+    jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX
+    ada_jax_methods = [''.join(("ADA", jm)) for jm in jax_methods]
+    methods = ['GEORCE_AdaFM'] + ada_jax_methods
+
+    for geo in geomtries:
+        for man, vals in runs.items():
+            dims, tol = vals[0], vals[1]
+            for d in dims:
+                for batch in batches:
+                    for m in methods:
+                        time.sleep(wait_time+np.abs(np.random.normal(0.0,1.,1)[0]))
+                        generate_job(man, d, m, geo, tol, batch, N_data)
+                        try:
+                            submit_job()
+                        except:
+                            time.sleep(100.0+np.abs(np.random.normal(0.0,1.,1)))
+                            try:
+                                submit_job()
+                            except:
+                                print(f"Job script with {geo}, {man}, {d}, {tol} failed!")
+                                
+    geomtries = ['Riemannian', 'Finsler'] #, "Lorentz"]
+    batches = [0.01, 0.1, 0.25]
+    N_data = 100
+
+    runs = {"celeba": [[32],1e-3],
+            "svhn": [[32],1e-3],
+            "mnist": [[8],1e-3],
             }
     
     jax_methods = ["sgd", "rmsprop_momentum", "rmsprop", "adamax", "adam", "adagrad"] #JAX

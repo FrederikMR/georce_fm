@@ -59,29 +59,42 @@ class ScipyOptimization(ABC):
         
         return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
     
-    def energy_frechet(self, 
-                       z:Array,
-                       )->Array:
+    def energy(self, 
+               z:Array,
+               )->Array:
+        
+        def step_energy(energy:Array,
+                        y:Tuple,
+                        )->Tuple:
+            
+            z, z_obs, w = y
+            
+            energy += w*self.path_energy(z_obs, z, z_mu)
+
+            return (energy,)*2
         
         zs = z[:-1]
         z_mu = z[-1]
-
         zs = zs.reshape(self.N, -1, self.dim)
-
-        path_energy = vmap(self.path_energy_frechet, in_axes=(0,0,None))(self.z_obs, zs, z_mu)
         
-        return jnp.sum(self.wi*path_energy)
+        energy, _ = lax.scan(step_energy,
+                             init=0.0,
+                             xs=(zs, self.z_obs, self.wi),
+                             )
+
+        return energy
     
-    def path_energy_frechet(self, 
-                            z0:Array,
-                            zs:Array,
-                            z_mu:Array,
-                            )->Array:
+    def path_energy(self, 
+                    z0:Array,
+                    zs:Array,
+                    z_mu:Array,
+                    )->Array:
         
         us = jnp.vstack((zs[0]-z0,
                          zs[1:]-zs[:-1],
-                         z_mu-zs[-1]
+                         z_mu-zs[-1],
                          ))
+
         ts = self.update_ts(z0, zs, us)
         
         val1 = self.M.F(self.t0, z0, -us[0])**2
@@ -95,7 +108,7 @@ class ScipyOptimization(ABC):
         
         z = z.reshape(-1,self.dim)
         
-        energy = self.energy_frechet(z)
+        energy = self.energy(z)
         
         return jnp.sum(energy)
     
