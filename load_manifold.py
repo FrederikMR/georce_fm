@@ -41,6 +41,7 @@ def load_manifold(manifold:str="Euclidean",
     
     load_path = ''.join((data_path, f'{manifold}/'))
     rho = 0.5
+    parallel=True
     if manifold == "Euclidean":
         M = nEuclidean(dim=dim)
     if manifold == "SPDN":
@@ -101,6 +102,8 @@ def load_manifold(manifold:str="Euclidean",
                                 encoder=celeba_encoder_fun,
                                 decoder=celeba_decoder_fun,
                                 )
+        
+        parallel = False
    
     elif manifold == "svhn":
         svhn_state = load_model(''.join(('models/', f'svhn_{dim}/')))
@@ -134,6 +137,8 @@ def load_manifold(manifold:str="Euclidean",
                                 decoder=svhn_decoder_fun,
                                 )
         
+        parallel = False
+        
     elif manifold == "mnist":
         mnist_state = load_model(''.join(('models/', f'mnist_{dim}/')))
        
@@ -165,9 +170,12 @@ def load_manifold(manifold:str="Euclidean",
                                 encoder=mnist_encoder_fun,
                                 decoder=mnist_decoder_fun,
                                 )
+        
+        parallel = False
+        
     else:
         raise ValueError(f"Manifold, {manifold}, is not defined. Only suported is: \n\t-Euclidean\n\t-Paraboloid\n\t-Sphere")
         
     z_obs = jnp.load(''.join((load_path, f'z_obs_{dim}_{N_data}.npy')))
         
-    return z_obs, M, rho
+    return z_obs, M, rho, parallel

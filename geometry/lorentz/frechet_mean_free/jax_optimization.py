@@ -25,12 +25,18 @@ class JAXOptimization(ABC):
                  T:int=100,
                  max_iter:int=1000,
                  tol:float=1e-4,
+                 parallel:bool=True,
                  )->None:
         
         self.M = M
         self.T = T
         self.max_iter = max_iter
         self.tol = tol
+        
+        if parallel:
+            self.energy = self.vmap_energy
+        else:
+            self.energy = self.loop_energy
         
         if optimizer is None:
             self.opt_init, self.opt_update, self.get_params = optimizers.adam(lr_rate)
@@ -59,10 +65,22 @@ class JAXOptimization(ABC):
         
         return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
     
-    def energy(self, 
-               z:Array,
-               )->Array:
+    def vmap_energy(self, 
+                    z:Array,
+                    )->Array:
         
+        zs = z[:-1]
+        z_mu = z[-1]
+        zs = zs.reshape(self.N, -1, self.dim)
+        
+        energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zs, z_mu)
+
+        return jnp.sum(self.wi*energy)
+    
+    def loop_energy(self, 
+                    z:Array,
+                    )->Array:
+            
         def step_energy(energy:Array,
                         y:Tuple,
                         )->Tuple:

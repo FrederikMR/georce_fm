@@ -24,6 +24,7 @@ class ScipyOptimization(ABC):
                  tol:float=1e-4,
                  max_iter:int=1000,
                  method:str='BFGS',
+                 parallel:bool=True,
                  )->None:
         
         if method not in['CG', 'BFGS', 'dogleg', 'trust-ncg', 'trust-exact']:
@@ -37,6 +38,11 @@ class ScipyOptimization(ABC):
                                                                    dtype=z0.dtype)[1:].reshape(-1,1)+z0
         else:
             self.init_fun = init_fun
+            
+        if parallel:
+            self.energy = self.vmap_energy
+        else:
+            self.energy = self.loop_energy
             
         self.M = M
         self.T = T
@@ -59,9 +65,20 @@ class ScipyOptimization(ABC):
         
         return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
     
-    def energy(self, 
-               z:Array,
-               )->Array:
+    def vmap_energy(self, 
+                    z:Array,
+                    )->Array:
+        
+        zt = z[:-1].reshape(self.N,-1,self.dim)
+        z_mu = z[-1]
+
+        energy = vmap(self.path_energy, in_axes=(0,0,0,None))(self.z_obs, zt, self.G0, z_mu)
+
+        return jnp.sum(self.wi*energy)
+    
+    def loop_energy(self, 
+                    z:Array,
+                    )->Array:
         
         def step_energy(energy:Array,
                         y:Tuple,

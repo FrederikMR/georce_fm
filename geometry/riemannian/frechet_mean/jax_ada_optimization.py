@@ -26,12 +26,18 @@ class JAXAdaOptimization(ABC):
                  max_iter:int=1000,
                  tol:float=1e-4,
                  seed:int=2712,
+                 parallel:bool=True
                  )->None:
         
         self.M = M
         self.T = T
         self.max_iter = max_iter
         self.tol = tol
+        
+        if parallel:
+            self.energy = self.vmap_energy
+        else:
+            self.energy = self.loop_energy
         
         if optimizer is None:
             self.opt_init, self.opt_update, self.get_params = optimizers.adam(lr_rate)
@@ -80,10 +86,25 @@ class JAXAdaOptimization(ABC):
         
         return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
     
-    def energy(self, 
-               z:Array,
-               batch_idx:Array,
-               )->Array:
+    def vmap_energy(self, 
+                    z:Array,
+                    batch_idx:Array,
+                    )->Array:
+        
+        zt = z[:-1].reshape(self.N,-1,self.dim)
+        z_mu = z[-1]
+        
+        if self.batch_size > 0:
+            zt = zt.at[batch_idx].set(lax.stop_gradient(zt[batch_idx]))
+
+        energy = vmap(self.path_energy, in_axes=(0,0,0,None))(self.z_obs, zt, self.G0, z_mu)
+
+        return jnp.sum(self.wi*energy)
+    
+    def loop_energy(self, 
+                    z:Array,
+                    batch_idx:Array,
+                    )->Array:
         
         def step_energy(energy:Array,
                         y:Tuple,

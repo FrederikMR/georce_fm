@@ -96,6 +96,7 @@ def generate_data(manifold:str="celeba",
     elif manifold == "H2":
         M = H2()
         
+        sigma = 0.5
         z0 = jnp.zeros(2, dtype=jnp.float32)
         z_obs = z0+jnp.sqrt(sigma)*jrandom.normal(key, shape=(N_data, M.dim))
 
@@ -196,7 +197,7 @@ def generate_data(manifold:str="celeba",
         svhn_state = load_model(''.join(('models/', f'svhn_{dim}/')))
         svhn_dataloader = svhn_generator(data_dir=svhn_path,
                                          batch_size=N_data,
-                                         seed=seed,
+                                         seed=8787,
                                          split='train[:80%]',
                                          )
         @hk.transform

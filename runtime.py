@@ -13,7 +13,7 @@ Created on Thu May 30 12:52:36 2024
 #%% Modules
 
 import jax.numpy as jnp
-from jax import jit, vmap
+from jax import jit, vmap, lax
 
 import timeit
 
@@ -59,7 +59,7 @@ from geometry.lorentz.frechet_mean_free import ScipyOptimization as LScipyOptimi
 def parse_args():
     parser = argparse.ArgumentParser()
     # File-paths
-    parser.add_argument('--manifold', default="H2",
+    parser.add_argument('--manifold', default="Sphere",
                         type=str)
     parser.add_argument('--geometry', default="Riemannian",
                         type=str)
@@ -73,7 +73,7 @@ def parse_args():
                         type=int)
     parser.add_argument('--v0', default=1.5,
                         type=float)
-    parser.add_argument('--method', default="adam",
+    parser.add_argument('--method', default="GEORCE_FM",
                         type=str)
     parser.add_argument('--jax_lr_rate', default=0.01,
                         type=float)
@@ -112,6 +112,10 @@ def estimate_method(FrechetMean, Geodesic, z_obs, M):
     print("\t-Geodesics computed")
     
     method['mu'] = z_mu
+    if args.method == "GEORCE_FM":
+        method['zt'] = lax.stop_gradient(zt)
+    else:
+        method['zt'] = None
     method['iterations'] = idx
     method['max_iter'] = args.max_iter
     method['tol'] = args.tol
@@ -143,6 +147,12 @@ def estimate_lorentz(FrechetMean, Geodesic, z_obs, M):
     print("\t-Geodesics computed")
     
     method['mu'] = z_mu
+    if args.method == "GEORCE_FM":
+        method['ts'] = lax.stop_gradient(ts)
+        method['zs'] = lax.stop_gradient(zs)
+    else:
+        method['ts'] = None
+        method['zs'] = None
     method['iterations'] = idx
     method['max_iter'] = args.max_iter
     method['tol'] = args.tol
@@ -191,10 +201,10 @@ def riemannian_runtime()->None:
     if os.path.exists(save_path):
         os.remove(save_path)
     
-    z_obs, M, rho = load_manifold(args.manifold, 
-                                  args.dim,
-                                  N_data=args.N_data,
-                                  )
+    z_obs, M, rho, parallel = load_manifold(args.manifold, 
+                                            args.dim,
+                                            N_data=args.N_data,
+                                            )
 
     Geodesic = RGEORCE(M=M,
                        init_fun=None,
@@ -231,6 +241,7 @@ def riemannian_runtime()->None:
                                  max_iter=args.max_iter,
                                  tol = args.tol,
                                  line_search_params={'rho': rho},
+                                 parallel = parallel,
                                  )
         methods['GEORCE_FM'] = estimate_method(jit(FrechetMean), jit(Geodesic), z_obs, M)
     elif args.method == "GEORCE_AdaFM":
@@ -243,6 +254,7 @@ def riemannian_runtime()->None:
                                     tol = args.tol,
                                     conv_flag=1.0,
                                     line_search_params={'rho': rho},
+                                    parallel = parallel,
                                     )    
         methods['GEORCE_AdaFM'] = estimate_method(jit(lambda z: FrechetMean(z,batch_size)), 
                                                   jit(Geodesic), 
@@ -260,6 +272,7 @@ def riemannian_runtime()->None:
                                                   T=args.T,
                                                   max_iter=args.max_iter,
                                                   tol=args.tol,
+                                                  parallel = parallel,
                                                   )
                 methods[args.method] = estimate_method(jit(lambda z: FrechetMean(z,batch_size)), 
                                                        jit(Geodesic), 
@@ -275,6 +288,7 @@ def riemannian_runtime()->None:
                                                T=args.T,
                                                max_iter=args.max_iter,
                                                tol=args.tol,
+                                               parallel = parallel,
                                                )
                 methods[args.method] = estimate_method(jit(FrechetMean), jit(Geodesic), z_obs, M)
         except:
@@ -284,6 +298,7 @@ def riemannian_runtime()->None:
                                                  tol=args.tol,
                                                  max_iter=args.max_iter,
                                                  method=args.method,
+                                                 parallel = parallel,
                                                  )
                 methods[args.method] = estimate_method(FrechetMean, jit(Geodesic), z_obs, M)
             except:
@@ -315,10 +330,10 @@ def finsler_runtime()->None:
     if os.path.exists(save_path):
         os.remove(save_path)
     
-    z_obs, RM, rho = load_manifold(args.manifold, 
-                                   args.dim, 
-                                   N_data=args.N_data,
-                                   )
+    z_obs, RM, rho, parallel = load_manifold(args.manifold, 
+                                             args.dim, 
+                                             N_data=args.N_data,
+                                             )
     
     M = FRiemannianNavigation(RM=RM,
                               force_fun=lambda z: force_fun(1.0, z, RM),
@@ -361,6 +376,7 @@ def finsler_runtime()->None:
                                  max_iter=args.max_iter,
                                  tol = args.tol,
                                  line_search_params={'rho': rho},
+                                 parallel = parallel,
                                  )    
         methods['GEORCE_FM'] = estimate_method(jit(FrechetMean), jit(Geodesic), z_obs, M)
     elif args.method == "GEORCE_AdaFM":
@@ -373,6 +389,7 @@ def finsler_runtime()->None:
                                     tol = args.tol,
                                     conv_flag=1.0,
                                     line_search_params={'rho': rho},
+                                    parallel = parallel,
                                     )    
         methods['GEORCE_AdaFM'] = estimate_method(jit(lambda z: FrechetMean(z,batch_size)), 
                                                   jit(Geodesic), 
@@ -390,6 +407,7 @@ def finsler_runtime()->None:
                                                   T=args.T,
                                                   max_iter=args.max_iter,
                                                   tol=args.tol,
+                                                  parallel = parallel,
                                                   )
                 methods[args.method] = estimate_method(jit(lambda z: FrechetMean(z,batch_size)), 
                                                      jit(Geodesic), 
@@ -405,6 +423,7 @@ def finsler_runtime()->None:
                                                T=args.T,
                                                max_iter=args.max_iter,
                                                tol=args.tol,
+                                               parallel = parallel,
                                                )
                 methods[args.method] = estimate_method(jit(FrechetMean), jit(Geodesic), z_obs, M)
         except:
@@ -414,6 +433,7 @@ def finsler_runtime()->None:
                                                  tol=args.tol,
                                                  max_iter=args.max_iter,
                                                  method=args.method,
+                                                 parallel = parallel,
                                                  )
                 methods[args.method] = estimate_method(FrechetMean, jit(Geodesic), z_obs, M)
             except:
@@ -445,10 +465,10 @@ def lorentz_runtime()->None:
     if os.path.exists(save_path):
         os.remove(save_path)
     
-    z_obs, RM, rho = load_manifold(args.manifold, 
-                                   args.dim, 
-                                   N_data=args.N_data,
-                                   )
+    z_obs, RM, rho, parallel = load_manifold(args.manifold, 
+                                             args.dim, 
+                                             N_data=args.N_data,
+                                             )
     
     M = LRiemannianNavigation(RM=RM,
                               force_fun=lambda t,z: force_fun(t, z, RM),
@@ -491,6 +511,7 @@ def lorentz_runtime()->None:
                                  max_iter=args.max_iter,
                                  tol = args.tol,
                                  line_search_params={'rho': rho},
+                                 parallel = parallel,
                                  )    
         methods['GEORCE_FM'] = estimate_lorentz(jit(FrechetMean), jit(Geodesic), z_obs, M)
     elif args.method == "GEORCE_AdaFM":
@@ -503,6 +524,7 @@ def lorentz_runtime()->None:
                                     tol = args.tol,
                                     conv_flag=1.0,
                                     line_search_params={'rho': rho},
+                                    parallel = parallel,
                                     )
         methods['GEORCE_AdaFM'] = estimate_lorentz(jit(lambda t,z: FrechetMean(t,z,batch_size)), 
                                                    jit(Geodesic), 
@@ -520,6 +542,7 @@ def lorentz_runtime()->None:
                                                   T=args.T,
                                                   max_iter=args.max_iter,
                                                   tol=args.tol,
+                                                  parallel = parallel,
                                                   )
                 methods[args.method] = estimate_lorentz(jit(lambda t,z: FrechetMean(t,z,batch_size)), 
                                                         jit(Geodesic), 
@@ -535,6 +558,7 @@ def lorentz_runtime()->None:
                                                T=args.T,
                                                max_iter=args.max_iter,
                                                tol=args.tol,
+                                               parallel = parallel,
                                                )
                 methods[args.method] = estimate_lorentz(jit(FrechetMean), jit(Geodesic), z_obs, M)
         except:
@@ -544,6 +568,7 @@ def lorentz_runtime()->None:
                                                  tol=args.tol,
                                                  max_iter=args.max_iter,
                                                  method=args.method,
+                                                 parallel = parallel,
                                                  )
                 methods[args.method] = estimate_lorentz(FrechetMean, jit(Geodesic), z_obs, M)
             except:

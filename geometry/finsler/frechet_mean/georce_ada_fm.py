@@ -29,6 +29,7 @@ class GEORCE_AdaFM(ABC):
                  conv_flag:float=1.0,
                  line_search_params:Dict = {'rho':0.5},
                  seed:int=2712,
+                 parallel:bool=True,
                  )->None:
         
         self.M = M
@@ -38,6 +39,7 @@ class GEORCE_AdaFM(ABC):
         self.conv_flag = conv_flag
         self.max_iter = max_iter
         self.sub_iter = sub_iter
+        self.parallel = parallel
 
         self.line_search_params = line_search_params
         
@@ -200,6 +202,7 @@ class GEORCE_AdaFM(ABC):
                                             T=self.T, 
                                             iters=self.sub_iter,
                                             line_search_params=self.line_search_params,
+                                            parallel=self.parallel,
                                             ))
 
         subkeys = jrandom.split(self.key, self.max_iter+1)
@@ -240,12 +243,22 @@ class GEORCE_FM_Step(ABC):
                  T:int=100,
                  iters:int=1000,
                  line_search_params:Dict = {},
+                 parallel:bool=True,
                  )->None:
         
         self.M = M
         self.T = T
         self.iters = jnp.ones(iters)
         self.line_search_params = line_search_params
+        
+        if parallel:
+            self.energy = self.vmap_energy
+            self.gt = self.vmap_gt
+            self.ht = self.vmap_ht
+        else:
+            self.energy = self.loop_energy
+            self.gt = self.loop_gt
+            self.ht = self.loop_ht
         
         if init_fun is None:
             self.init_fun = lambda z0, zT, T: (zT-z0)*jnp.linspace(0.0,
@@ -271,11 +284,21 @@ class GEORCE_FM_Step(ABC):
         
         return zt, ut
     
-    def energy(self, 
-               zt:Array,
-               z_mu:Array,
-               *args,
-               )->Array:
+    def vmap_energy(self, 
+                    zt:Array,
+                    z_mu:Array,
+                    *args,
+                    )->Array:
+
+        energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zt, z_mu)
+
+        return jnp.sum(self.wi*energy)
+    
+    def loop_energy(self, 
+                    zt:Array,
+                    z_mu:Array,
+                    *args,
+                    )->Array:
         
         def step_energy(energy:Array,
                         y:Tuple,
@@ -320,29 +343,66 @@ class GEORCE_FM_Step(ABC):
 
         return grad(self.energy, argnums=0)(zt,*args)/self.N
     
-    def inner_product(self,
-                      zt:Array,
-                      ut:Array,
-                      )->Array:
+    def vmap_inner_product(self,
+                           zt:Array,
+                           ut:Array,
+                           )->Array:
+        
+        Gt = vmap(vmap(self.M.G))(zt,-ut)
+
+        return jnp.sum(jnp.einsum('...i,...ij,...j->...', ut, Gt, ut))
+    
+    def vmap_inner_product_h(self,
+                             zt:Array,
+                             u0:Array,
+                             ut:Array,
+                             )->Array:
+        
+        Gt = vmap(vmap(self.M.G))(zt,-ut)
+
+        return jnp.sum(jnp.einsum('...i,...ij,...j->...', u0, Gt, u0)), Gt
+    
+    def loop_inner_product(self,
+                           zt:Array,
+                           ut:Array,
+                           )->Array:
         
         Gt = vmap(self.M.G)(zt,-ut)
 
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', ut, Gt, ut))
     
-    def inner_product_h(self,
-                        zt:Array,
-                        u0:Array,
-                        ut:Array,
-                        )->Array:
+    def loop_inner_product_h(self,
+                             zt:Array,
+                             u0:Array,
+                             ut:Array,
+                             )->Array:
         
         Gt = vmap(self.M.G)(zt,-ut)
 
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', u0, Gt, u0)), Gt
     
-    def gt(self,
-           zt:Array,
-           ut:Array,
-           )->Array:
+    def vmap_gt(self,
+                zt:Array,
+                ut:Array,
+                )->Array:
+        
+        gt = lax.stop_gradient(grad(self.vmap_inner_product)(zt, ut))
+
+        return gt
+    
+    def vmap_ht(self,
+                zt:Array,
+                ut:Array,
+                )->Array:
+        
+        ht, Gt = lax.stop_gradient(grad(self.vmap_inner_product_h, argnums=2, has_aux=True)(zt, ut, ut))
+        
+        return ht, Gt
+    
+    def loop_gt(self,
+                zt:Array,
+                ut:Array,
+                )->Array:
         
         def step_gt(g:Array,
                     y:Tuple,
@@ -350,7 +410,7 @@ class GEORCE_FM_Step(ABC):
             
             z,u = y
             
-            g = lax.stop_gradient(grad(self.inner_product)(z, u))
+            g = lax.stop_gradient(grad(self.loop_inner_product)(z, u))
             
             return (g,)*2
         
@@ -361,10 +421,10 @@ class GEORCE_FM_Step(ABC):
 
         return gt
     
-    def ht(self,
-           zt:Array,
-           ut:Array,
-           )->Array:
+    def loop_ht(self,
+                zt:Array,
+                ut:Array,
+                )->Array:
         
         def step_ht(c:Tuple,
                     y:Tuple,
@@ -372,7 +432,7 @@ class GEORCE_FM_Step(ABC):
             
             z,u = y
             
-            h, G = lax.stop_gradient(grad(self.inner_product_h, argnums=2, has_aux=True)(z, u, u))
+            h, G = lax.stop_gradient(grad(self.loop_inner_product_h, argnums=2, has_aux=True)(z, u, u))
             
             return ((h,G),)*2
         

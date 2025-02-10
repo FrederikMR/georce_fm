@@ -25,6 +25,7 @@ class GEORCE_FM(ABC):
                  tol:float=1e-4,
                  max_iter:int=1000,
                  line_search_params:Dict = {},
+                 parallel:bool=True,
                  )->None:
         
         self.M = M
@@ -32,6 +33,17 @@ class GEORCE_FM(ABC):
         self.tol = tol
         self.max_iter = max_iter
         self.line_search_params = line_search_params
+        
+        if parallel:
+            self.energy = self.vmap_energy
+            self.gs = self.vmap_gs
+            self.hs = self.vmap_hs
+            self.rs = self.vmap_rs
+        else:
+            self.energy = self.loop_energy
+            self.gs = self.loop_gs
+            self.hs = self.loop_hs
+            self.rs = self.loop_rs
         
         self.Lt = grad(M.F, argnums=0)
         self.Lz = jacfwd(M.F, argnums=1)
@@ -61,12 +73,24 @@ class GEORCE_FM(ABC):
         
         return zs, us
     
-    def energy(self, 
-               zs:Array,
-               z_mu:Array,
-               *args,
-               )->Array:
+    def vmap_energy(self, 
+                    zs:Array,
+                    z_mu:Array,
+                    *args,
+                    )->Array:
         
+        zs = zs.reshape(self.N, -1, self.dim)
+        
+        energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zs, z_mu)
+
+        return jnp.sum(self.wi*energy)
+    
+    def loop_energy(self, 
+                    zs:Array,
+                    z_mu:Array,
+                    *args,
+                    )->Array:
+            
         def step_energy(energy:Array,
                         y:Tuple,
                         )->Tuple:
@@ -120,7 +144,28 @@ class GEORCE_FM(ABC):
         
         return jnp.hstack((dcurve.reshape(-1), dmu))/self.N
     
-    def inner_product(self,
+    def vmap_inner_product(self,
+                      ts:Array,
+                      zs:Array,
+                      us:Array,
+                      )->Array:
+        
+        Gs = vmap(vmap(self.M.G))(ts,zs,-us)
+
+        return jnp.sum(jnp.einsum('...i,...ij,...j->...', us, Gs, us))
+    
+    def vmap_inner_product_h(self,
+                        ts:Array,
+                        zs:Array,
+                        u0:Array,
+                        us:Array,
+                        )->Array:
+        
+        Gs = vmap(vmap(self.M.G))(ts, zs,-us)
+
+        return jnp.sum(jnp.einsum('...i,...ij,...j->...', u0, Gs, u0)), Gs
+    
+    def loop_inner_product(self,
                       ts:Array,
                       zs:Array,
                       us:Array,
@@ -130,7 +175,7 @@ class GEORCE_FM(ABC):
 
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', us, Gs, us))
     
-    def inner_product_h(self,
+    def loop_inner_product_h(self,
                         ts:Array,
                         zs:Array,
                         u0:Array,
@@ -141,11 +186,41 @@ class GEORCE_FM(ABC):
 
         return jnp.sum(jnp.einsum('...i,...ij,...j->...', u0, Gs, u0)), Gs
     
-    def gs(self,
-           ts:Array,
-           zs:Array,
-           us:Array,
-           )->Array:
+    def vmap_gs(self,
+                ts:Array,
+                zs:Array,
+                us:Array,
+                )->Array:
+        
+        gs = lax.stop_gradient(grad(self.vmap_inner_product, argnums=1)(ts, zs, us))
+
+        return gs
+    
+    def vmap_hs(self,
+                ts:Array,
+                zs:Array,
+                us:Array,
+                )->Array:
+        
+        hs, Gs = lax.stop_gradient(grad(self.vmap_inner_product_h, argnums=3, has_aux=True)(ts, zs, us, us))
+        
+        return hs, Gs
+    
+    def vmap_rs(self,
+                ts:Array,
+                zs:Array,
+                us:Array,
+                )->Array:
+        
+        rs = lax.stop_gradient(grad(self.vmap_inner_product, argnums=0)(ts, zs, us))
+
+        return rs
+    
+    def loop_gs(self,
+                ts:Array,
+                zs:Array,
+                us:Array,
+                )->Array:
         
         def step_gs(g:Array,
                     y:Tuple,
@@ -153,7 +228,7 @@ class GEORCE_FM(ABC):
             
             t,z,u = y
             
-            g = lax.stop_gradient(grad(self.inner_product, argnums=1)(t,z,u))
+            g = lax.stop_gradient(grad(self.loop_inner_product, argnums=1)(t,z,u))
             
             return (g,)*2
         
@@ -164,11 +239,11 @@ class GEORCE_FM(ABC):
 
         return gs
     
-    def hs(self,
-           ts:Array,
-           zs:Array,
-           us:Array,
-           )->Array:
+    def loop_hs(self,
+                ts:Array,
+                zs:Array,
+                us:Array,
+                )->Array:
         
         def step_hs(c:Tuple,
                     y:Tuple,
@@ -176,7 +251,7 @@ class GEORCE_FM(ABC):
             
             t,z,u = y
             
-            h, G = lax.stop_gradient(grad(self.inner_product_h, argnums=3, has_aux=True)(t, z, u, u))
+            h, G = lax.stop_gradient(grad(self.loop_inner_product_h, argnums=3, has_aux=True)(t, z, u, u))
             
             return ((h,G),)*2
         
@@ -188,11 +263,11 @@ class GEORCE_FM(ABC):
         
         return hs, Gs
     
-    def rs(self,
-           ts:Array,
-           zs:Array,
-           us:Array,
-           )->Array:
+    def loop_rs(self,
+                ts:Array,
+                zs:Array,
+                us:Array,
+                )->Array:
         
         def step_rs(g:Array,
                     y:Tuple,
@@ -200,7 +275,7 @@ class GEORCE_FM(ABC):
             
             t,z,u = y
             
-            r = lax.stop_gradient(grad(self.inner_product, argnums=0)(t,z,u))
+            r = lax.stop_gradient(grad(self.loop_inner_product, argnums=0)(t,z,u))
             
             return (r,)*2
         

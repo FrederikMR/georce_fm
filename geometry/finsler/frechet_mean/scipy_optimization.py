@@ -24,6 +24,7 @@ class ScipyOptimization(ABC):
                  tol:float=1e-4,
                  max_iter:int=1000,
                  method:str='BFGS',
+                 parallel:bool=True,
                  )->None:
         
         if method not in['CG', 'BFGS', 'dogleg', 'trust-ncg', 'trust-exact']:
@@ -44,6 +45,11 @@ class ScipyOptimization(ABC):
         self.tol = tol
         self.max_iter = max_iter
         
+        if parallel:
+            self.energy = self.vmap_energy
+        else:
+            self.energy = self.loop_energy
+        
         self.save_zt = []
         
         return
@@ -59,9 +65,46 @@ class ScipyOptimization(ABC):
         
         return vmap(self.init_fun, in_axes=(0,None,None))(z_obs, z_mu, self.T)
     
-    def energy(self, 
-               z:Array,
-               )->Array:
+    def vmap_energy(self, 
+                    z:Array,
+                    )->Array:
+        
+        zt = z[:-1]
+        z_mu = z[-1]
+        zt = zt.reshape(self.N, -1, self.dim)
+
+        energy = vmap(self.path_energy, in_axes=(0,0,None))(self.z_obs, zt, z_mu)
+
+        return jnp.sum(self.wi*energy)
+    
+    def loop_energy(self, 
+                    z:Array,
+                    )->Array:
+        
+        def step_energy(energy:Array,
+                        y:Tuple,
+                        )->Tuple:
+            
+            z, z_obs, w = y
+            
+            energy += w*self.path_energy(z_obs, z, z_mu)
+
+            return (energy,)*2
+        
+        zt = z[:-1]
+        z_mu = z[-1]
+        zt = zt.reshape(self.N, -1, self.dim)
+        
+        energy, _ = lax.scan(step_energy,
+                             init=0.0,
+                             xs=(zt, self.z_obs, self.wi),
+                             )
+
+        return energy
+    
+    def loop_energy(self, 
+                    z:Array,
+                    )->Array:
         
         def step_energy(energy:Array,
                         y:Tuple,
