@@ -182,7 +182,7 @@ def loop_adaptive_jobs(wait_time = 1.0):
                                 print(f"Job script with {geo}, {man}, {d}, {tol} failed!")
                                 
     geomtries = ['Riemannian', 'Finsler'] #, "Lorentz"]
-    batches = [0.01, 0.1, 0.25]
+    batches = [0.1]
     N_data = 100
 
     runs = {"celeba": [[32],1e-3],

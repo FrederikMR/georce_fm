@@ -59,7 +59,7 @@ from geometry.lorentz.frechet_mean_free import ScipyOptimization as LScipyOptimi
 def parse_args():
     parser = argparse.ArgumentParser()
     # File-paths
-    parser.add_argument('--manifold', default="Sphere",
+    parser.add_argument('--manifold', default="H2",
                         type=str)
     parser.add_argument('--geometry', default="Riemannian",
                         type=str)
@@ -73,7 +73,7 @@ def parse_args():
                         type=int)
     parser.add_argument('--v0', default=1.5,
                         type=float)
-    parser.add_argument('--method', default="GEORCE_FM",
+    parser.add_argument('--method', default="adam",
                         type=str)
     parser.add_argument('--jax_lr_rate', default=0.01,
                         type=float)
