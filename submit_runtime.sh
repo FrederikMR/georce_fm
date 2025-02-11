@@ -1,6 +1,6 @@
     #! /bin/bash
     #BSUB -q gpuv100
-    #BSUB -J Rsphere1000_10_GEORCE_FM
+    #BSUB -J Fmnist8_01_ADAadagrad
     #BSUB -n 4
     #BSUB -gpu "num=1:mode=exclusive_process"
     #BSUB -W 24:00
@@ -18,14 +18,14 @@
     module swap python3/3.10.12
     
     python3 runtime.py \
-        --manifold Sphere \
-        --geometry Riemannian \
-        --dim 1000 \
-        --batch_size 1.0 \
+        --manifold mnist \
+        --geometry Finsler \
+        --dim 8 \
+        --batch_size 0.1 \
         --N_data 100 \
         --T 100 \
         --v0 1.5 \
-        --method GEORCE_FM \
+        --method ADAadagrad \
         --jax_lr_rate 0.01 \
         --tol 0.001 \
         --max_iter 1000 \
