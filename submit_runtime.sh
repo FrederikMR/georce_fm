@@ -1,6 +1,6 @@
     #! /bin/bash
     #BSUB -q gpuv100
-    #BSUB -J Fmnist8_01_ADAadagrad
+    #BSUB -J Fmnist8_02_ADAadagrad
     #BSUB -n 4
     #BSUB -gpu "num=1:mode=exclusive_process"
     #BSUB -W 24:00
@@ -21,7 +21,7 @@
         --manifold mnist \
         --geometry Finsler \
         --dim 8 \
-        --batch_size 0.1 \
+        --batch_size 0.2 \
         --N_data 100 \
         --T 100 \
         --v0 1.5 \
