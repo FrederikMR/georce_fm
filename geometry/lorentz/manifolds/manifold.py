@@ -104,10 +104,23 @@ class LorentzFinslerManifold(ABC):
                        z_obs:Array,
                        z_mu:Array,
                        )->Array:
-
-        path_length = vmap(self.path_length_frechet, in_axes=(0,0,None,0,None))(z_obs, zs, z_mu, ts, t0)
         
-        return jnp.sum(path_length**2)
+        def step_length(length:Array,
+                        y:Tuple,
+                        )->Tuple:
+            
+            z0, z_path, t_path = y
+            
+            length += self.path_length_frechet(z0, z_path, z_mu, t_path, t0)**2
+            
+            return (length,)*2
+        
+        length, _ = lax.scan(step_length,
+                             init=0.0,
+                             xs=(z_obs, zs, ts),
+                             )
+
+        return length
     
     def path_length_frechet(self, 
                             zT:Array,

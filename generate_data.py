@@ -197,7 +197,7 @@ def generate_data(manifold:str="celeba",
         svhn_state = load_model(''.join(('models/', f'svhn_{dim}/')))
         svhn_dataloader = svhn_generator(data_dir=svhn_path,
                                          batch_size=N_data,
-                                         seed=8787,
+                                         seed=seed,
                                          split='train[:80%]',
                                          )
         @hk.transform

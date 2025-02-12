@@ -123,10 +123,23 @@ class RiemannianManifold(ABC):
                        z_mu:Array,
                        )->Array:
         
-        G0 = self.G(z_mu)
-        path_length = vmap(self.path_length_frechet, in_axes=(0,0,None,None))(z_obs, zt, z_mu, G0)
+        def step_length(length:Array,
+                         y:Tuple,
+                         )->Tuple:
+            
+            z0, z_path = y
+            
+            length += self.path_length_frechet(z0, z_path, z_mu, G0)**2
+            
+            return (length,)*2
         
-        return jnp.sum(path_length**2)
+        G0 = self.G(z_mu)
+        length, _ = lax.scan(step_length,
+                             init=0.0,
+                             xs=(z_obs, zt),
+                             )
+        
+        return length
     
     def path_length_frechet(self, 
                             zT:Array,

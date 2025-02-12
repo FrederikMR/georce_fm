@@ -61,7 +61,7 @@ def parse_args():
     # File-paths
     parser.add_argument('--manifold', default="Sphere",
                         type=str)
-    parser.add_argument('--geometry', default="Riemannian",
+    parser.add_argument('--geometry', default="Lorentz",
                         type=str)
     parser.add_argument('--dim', default=2,
                         type=int)
@@ -107,7 +107,7 @@ def estimate_method(FrechetMean, Geodesic, z_obs, M):
     print("\t-Timing Computed")
     timing = jnp.stack(timing)
     
-    zt_geodesic = vmap(Geodesic, in_axes=(None,0))(z_mu, z_obs)
+    zt_geodesic = jnp.stack([Geodesic(z_mu, z0) for z0 in z_obs])
     sum_geodesic_dist = M.length_frechet(zt_geodesic, z_obs, z_mu)
     print("\t-Geodesics computed")
     
@@ -141,8 +141,11 @@ def estimate_lorentz(FrechetMean, Geodesic, z_obs, M):
                            repeat=args.timing_repeats)
     print("\t-Timing Computed")
     timing = jnp.stack(timing)
+    
+    val_tuple = [Geodesic(0.0, z_mu, z0) for z0 in z_obs]
+    val_list = list(map(list, zip(*val_tuple)))
+    ts_geodesic, zs_geodesic = jnp.stack(val_list[0]), jnp.stack(val_list[1])
 
-    ts_geodesic, zs_geodesic = vmap(Geodesic, in_axes=(None,None,0))(0.0, z_mu, z_obs)
     sum_geodesic_dist = M.length_frechet(0.0, ts_geodesic, zs_geodesic, z_obs, z_mu)
     print("\t-Geodesics computed")
     
