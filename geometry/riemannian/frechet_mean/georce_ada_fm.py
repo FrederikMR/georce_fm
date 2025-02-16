@@ -21,7 +21,7 @@ class GEORCE_AdaFM(ABC):
     def __init__(self,
                  M:RiemannianManifold,
                  init_fun:Callable[[Array, Array, int], Array]=None,
-                 lam:float=0.48,
+                 alpha:float=0.9,
                  T:int=100,
                  tol:float=1e-4,
                  max_iter:int=1000,
@@ -33,7 +33,7 @@ class GEORCE_AdaFM(ABC):
                  )->None:
         
         self.M = M
-        self.lam = lam
+        self.alpha = alpha
         self.T = T
         self.tol = tol
         self.conv_flag = conv_flag
@@ -86,7 +86,7 @@ class GEORCE_AdaFM(ABC):
                        idx:int,
                        )->Tuple:
         
-        alpha = self.lam/(1.-self.lam**(idx+1))
+        alpha = self.alpha
         
         Wk_hat = alpha*Wk1+(1.-alpha)*Wk2
         Vk_hat = alpha*Vk1+(1.-alpha)*Vk2

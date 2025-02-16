@@ -61,7 +61,7 @@ def parse_args():
     # File-paths
     parser.add_argument('--manifold', default="Sphere",
                         type=str)
-    parser.add_argument('--geometry', default="Lorentz",
+    parser.add_argument('--geometry', default="Riemannian",
                         type=str)
     parser.add_argument('--dim', default=2,
                         type=int)
@@ -250,7 +250,7 @@ def riemannian_runtime()->None:
     elif args.method == "GEORCE_AdaFM":
         FrechetMean = RGEORCE_AdaFM(M=M,
                                     init_fun=None,
-                                    lam=0.48,
+                                    alpha=0.90,
                                     T=args.T,
                                     sub_iter=5,
                                     max_iter=args.max_iter,
@@ -385,7 +385,7 @@ def finsler_runtime()->None:
     elif args.method == "GEORCE_AdaFM":
         FrechetMean = FGEORCE_AdaFM(M=M,
                                     init_fun=None,
-                                    lam=0.48,
+                                    alpha=0.90,
                                     T=args.T,
                                     sub_iter=5,
                                     max_iter=args.max_iter,
@@ -520,7 +520,7 @@ def lorentz_runtime()->None:
     elif args.method == "GEORCE_AdaFM":
         FrechetMean = LGEORCE_AdaFM(M=M,
                                     init_fun=None,
-                                    lam=0.48,
+                                    alpha=0.90,
                                     T=args.T,
                                     sub_iter=5,
                                     max_iter=args.max_iter,

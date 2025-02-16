@@ -112,7 +112,6 @@ def loop_fixed_jobs(wait_time = 1.0):
     batch_size = 1.0
 
     runs = {"celeba": [[32],1e-3],
-            "svhn": [[32],1e-3],
             "mnist": [[8],1e-3],
             }
     
@@ -140,7 +139,7 @@ def loop_fixed_jobs(wait_time = 1.0):
 def loop_adaptive_jobs(wait_time = 1.0):
     
     geomtries = ['Riemannian', 'Finsler'] #, "Lorentz"]
-    batches = [0.05, 0.1, 0.2]#[0.01, 0.1, 0.25]
+    batches = [0.05, 0.1]#[0.01, 0.1, 0.25]
     N_data = 1_000
 
     runs = {"Sphere": [[2,3,5,10,20,50,100],1e-4],
@@ -178,11 +177,10 @@ def loop_adaptive_jobs(wait_time = 1.0):
                                 print(f"Job script with {geo}, {man}, {d}, {tol} failed!")
                                 
     geomtries = ['Riemannian', 'Finsler'] #, "Lorentz"
-    batches = [0.05, 0.1, 0.2]
+    batches = [0.05, 0.1]
     N_data = 100
 
     runs = {"celeba": [[32],1e-3],
-            "svhn": [[32],1e-3],
             "mnist": [[8],1e-3],
             }
     
