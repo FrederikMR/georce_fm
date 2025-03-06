@@ -61,19 +61,19 @@ def parse_args():
     # File-paths
     parser.add_argument('--manifold', default="Sphere",
                         type=str)
-    parser.add_argument('--geometry', default="Riemannian",
+    parser.add_argument('--geometry', default="Finsler",
                         type=str)
     parser.add_argument('--dim', default=2,
                         type=int)
-    parser.add_argument('--batch_size', default=1.0,
+    parser.add_argument('--batch_size', default=0.1,
                         type=float)
-    parser.add_argument('--N_data', default=100,
+    parser.add_argument('--N_data', default=1000,
                         type=int)
     parser.add_argument('--T', default=100,
                         type=int)
     parser.add_argument('--v0', default=1.5,
                         type=float)
-    parser.add_argument('--method', default="GEORCE_FM",
+    parser.add_argument('--method', default="GEORCE_AdaFM",
                         type=str)
     parser.add_argument('--jax_lr_rate', default=0.01,
                         type=float)

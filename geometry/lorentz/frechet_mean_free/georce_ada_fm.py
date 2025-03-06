@@ -85,12 +85,12 @@ class GEORCE_AdaFM(ABC):
                        idx:int,
                        )->Tuple:
         
-        alpha = self.alpha
+        alpha = self.alpha #self.alpha/(1.-self.alpha**(idx+1))
         
         Wk_hat = alpha*Wk1+(1.-alpha)*Wk2
         Vk_hat = alpha*Vk1+(1.-alpha)*Vk2
         
-        return Wk_hat, Vk_hat,
+        return Wk_hat, Vk_hat
     
     def update_convergence(self,
                            Wk1:Array,
