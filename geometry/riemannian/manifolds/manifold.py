@@ -12,6 +12,12 @@ Created on Fri May 24 09:54:30 2024
 
 from geometry.setup import *
 
+import numpy as np
+
+#scipy solve bvp
+from scipy.integrate import solve_ivp
+from scipy.interpolate import CubicSpline
+
 #%% Riemannian Manifold
 
 class RiemannianManifold(ABC):
@@ -61,6 +67,15 @@ class RiemannianManifold(ABC):
 
         return jacfwd(self.G)(z)
     
+    def inner_product(self,
+                      z:Array,
+                      u:Array,
+                      )->Array:
+        
+        G = self.G(z)
+        
+        return jnp.einsum('i,ij,j->', u,G,u)
+    
     def Ginv(self,
              z:Array
              )->Array:
@@ -83,13 +98,105 @@ class RiemannianManifold(ABC):
                           v:Array
                           )->Array:
         
-        Gamma = self.Chris(z)
+        Gamma = self.christoffel_symbols(z)
 
         dx1t = v
         dx2t = -jnp.einsum('ikl,k,l->i',Gamma,v,v)
         
         return jnp.hstack((dx1t,dx2t))
     
+    def Exp(self,
+            z:Array,
+            v:Array,
+            T:int=100,
+            )->Array:
+        
+        def dif_fun(t,y):
+            
+            z = y[:self.dim]
+            v = y[self.dim:]
+            
+            return self.geodesic_equation(z, v)
+        
+        dim = len(z)
+        t_span = [0., 1.]
+        t_eval = jnp.linspace(0.,1.,T+1, endpoint=True)
+
+        zt = solve_ivp(dif_fun, t_span, jnp.hstack((z, v)),
+                        method='RK45', t_eval=t_eval).y[:self.dim].T
+        
+        zt = jnp.array(zt)
+        
+        return zt
+    
+    def Exp_ode(self,
+                z:Array,
+                v:Array,
+                T:int=100,
+                )->Array:
+        
+        def dif_fun(t,y):
+            
+            z = y[:self.dim]
+            v = y[self.dim:]
+            
+            return self.geodesic_equation(z, v)
+        
+        dim = len(z)
+        
+        ts, zs = rk45_fixed_step(dif_fun, 
+                                 jnp.hstack((z, v)), 
+                                 0.0, 
+                                 1.0,
+                                 T,
+                                 )
+        
+        zs = zs[:,:self.dim]
+        
+        return zs
+    
+    def parallel_transport_ode(self,
+                               gamma:Array,
+                               v:Array,
+                               )->Array:
+
+        """
+        Parallel transport vector v0 along a curve gamma using RK45 (scipy).
+        
+        Parameters:
+            gamma_points: (N, n) array of curve points
+            t_vals: (N,) array of time parameters (monotonic)
+            v0: (n,) initial vector at gamma[0]
+            compute_christoffel: function: point -> (n, n, n)
+        
+        Returns:
+            t_vals: same as input
+            transported_vs: (N, n) transported vectors
+        """
+        
+        T = gamma.shape[0]
+        t_vals = jnp.linspace(0.,1.,T, endpoint=True) / T
+    
+        # Step 1: Create cubic interpolators for gamma and its derivative
+        gamma_spline = CurveInterpolator(gamma, t_vals)
+    
+        # Step 2: Define the ODE for dV/dt = -Γ^i_{jk} * dx^j/dt * V^k
+        def odefun(t, V):
+            p, dxdt = gamma_spline(t)
+            Gamma = self.christoffel_symbols(p)
+            contraction = jnp.einsum('ijk,j,k->i', Gamma, dxdt, V)
+            return -contraction
+        
+        
+        ts, vs = rk45_fixed_step(odefun, 
+                                 v, 
+                                 0.0, 
+                                 1.0,
+                                 T,
+                                 )
+        
+        return ts, vs
+
     def energy(self, 
                gamma:Array,
                )->Array:
@@ -101,7 +208,7 @@ class RiemannianManifold(ABC):
         g = vmap(lambda g: self.G(g))(gamma)
         integrand = jnp.einsum('ti,tij,tj->t', dgamma, g[:-1], dgamma)
         
-        return jnp.trapz(integrand, dx=dt)
+        return jnp.trapezoid(integrand, dx=dt)
     
     def length(self,
                gamma:Array,
@@ -115,7 +222,7 @@ class RiemannianManifold(ABC):
         g = vmap(lambda g: self.G(g))(gamma)
         integrand = jnp.sqrt(jnp.einsum('ti,tij,tj->t', dgamma, g[:-1], dgamma))
             
-        return jnp.trapz(integrand, dx=dt)
+        return jnp.trapezoid(integrand, dx=dt)
     
     def length_frechet(self, 
                        zt:Array,
@@ -159,4 +266,156 @@ class RiemannianManifold(ABC):
         val3 = jnp.sqrt(jnp.einsum('i,ij,j->', term3, Gt[-1], term3))
         
         return val1+jnp.sum(val2)+val3
+    
+    def indicatrix(self,
+                   z:Array,
+                   N_points:int=100,
+                   *args,
+                   )->Array:
+        
+        theta = jnp.linspace(0.,2*jnp.pi,N_points)
+        u = jnp.vstack((jnp.cos(theta), jnp.sin(theta))).T
+        
+        norm = vmap(self.inner_product, in_axes=(None, 0))(z,u)
+        
+        return jnp.einsum('ij,i->ij', u, 1./norm)
+
+#%% ODE Fun
+
+def rk45_step(f, t, y, dt):
+    """Single Dormand–Prince RK45 step."""
+    # RK45 coefficients
+    c = jnp.array([0.0, 1/5, 3/10, 4/5, 8/9, 1.0, 1.0])
+    
+    a = [
+        [],
+        [1/5],
+        [3/40, 9/40],
+        [44/45, -56/15, 32/9],
+        [19372/6561, -25360/2187, 64448/6561, -212/729],
+        [9017/3168, -355/33, 46732/5247, 49/176, -5103/18656],
+        [35/384, 0, 500/1113, 125/192, -2187/6784, 11/84],
+    ]
+    
+    b5 = jnp.array([35/384, 0, 500/1113, 125/192, -2187/6784, 11/84, 0])  # 5th order
+    b4 = jnp.array([5179/57600, 0, 7571/16695, 393/640, -92097/339200, 187/2100, 1/40])  # 4th order
+
+    k = []
+
+    for i in range(7):
+        dy = sum(a[i][j] * k[j] for j in range(i)) if i > 0 else 0.0
+        k_i = f(t + c[i] * dt, y + dt * dy)
+        k.append(k_i)
+
+    k = jnp.stack(k)  # shape (7, ...) for broadcasting
+
+    y_next = y + dt * jnp.tensordot(b5, k, axes=1)
+    y_err = dt * jnp.tensordot(b5 - b4, k, axes=1)
+
+    return y_next, y_err
+
+    
+def rk45_fixed_step(f, y0, t0, t1, T):
+    """Fixed-step RK45 ODE solver."""
+
+    ts = jnp.linspace(t0, t1, T + 1)
+    dt = 1./T
+
+    def step_fn(y, t):
+        y_next, _ = rk45_step(f, t, y, dt)
+        return y_next, y_next
+
+    _, ys = lax.scan(step_fn, y0, ts[:-1])  # exclude last t since we return y0 + N steps
+    ys = jnp.vstack([y0[None, :], ys])      # prepend initial condition
+
+    return ts, ys
+
+#%% Spline fun
+
+class CurveInterpolator:
+    def __init__(self, points: jnp.ndarray, t_domain: jnp.ndarray = None):
+        """
+        Initialize with:
+            - points: array of shape (N, d), N curve points in d dimensions
+            - t_domain: array of shape (N,), optional time parameter values (defaults to linspace [0,1])
+        """
+        self.points = points
+        self.N, self.d = points.shape
+
+        if t_domain is None:
+            self.t_domain = jnp.linspace(0.0, 1.0, self.N)
+        else:
+            assert t_domain.shape[0] == self.N
+            self.t_domain = t_domain
+
+        self.tangents = self._compute_tangents(self.points)
+
+    def _compute_tangents(self, y):
+        """Estimate tangents using central differences."""
+        dy = jnp.zeros_like(y)
+        dy = dy.at[1:-1].set((y[2:] - y[:-2]) / 2.0)
+        dy = dy.at[0].set(y[1] - y[0])
+        dy = dy.at[-1].set(y[-1] - y[-2])
+        return dy
+
+    def _hermite_basis(self, u):
+        """Cubic Hermite basis and their derivatives."""
+        h00 = 2*u**3 - 3*u**2 + 1
+        h10 = u**3 - 2*u**2 + u
+        h01 = -2*u**3 + 3*u**2
+        h11 = u**3 - u**2
+
+        dh00 = 6*u**2 - 6*u
+        dh10 = 3*u**2 - 4*u + 1
+        dh01 = -6*u**2 + 6*u
+        dh11 = 3*u**2 - 2*u
+
+        return (h00, h10, h01, h11), (dh00, dh10, dh01, dh11)
+
+    def _interp_single(self, t):
+        """Interpolate a single t value."""
+        t = jnp.clip(t, self.t_domain[0], self.t_domain[-1])
+        i = jnp.searchsorted(self.t_domain, t, side='right') - 1
+        i = jnp.clip(i, 0, self.N - 2)
+
+        t0 = self.t_domain[i]
+        t1 = self.t_domain[i + 1]
+        dt = t1 - t0
+        u = (t - t0) / dt
+
+        p0 = self.points[i]
+        p1 = self.points[i + 1]
+        m0 = self.tangents[i]
+        m1 = self.tangents[i + 1]
+
+        (h00, h10, h01, h11), (dh00, dh10, dh01, dh11) = self._hermite_basis(u)
+
+        value = (
+            h00 * p0 +
+            h10 * dt * m0 +
+            h01 * p1 +
+            h11 * dt * m1
+        )
+
+        derivative = (
+            dh00 * p0 +
+            dh10 * dt * m0 +
+            dh01 * p1 +
+            dh11 * dt * m1
+        ) / dt  # Chain rule
+
+        return value, derivative
+
+    def __call__(self, t):
+        """
+        Evaluate the interpolated curve and its derivative at t.
+        t: scalar or array in [t0, tN]
+        Returns: (curve(t), curve'(t))
+        """
+        if jnp.ndim(t) == 0:
+            return self._interp_single(t)
+        else:
+            return jax.vmap(self._interp_single)(t)
+
+
     

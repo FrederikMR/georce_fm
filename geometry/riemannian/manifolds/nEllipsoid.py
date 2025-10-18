@@ -107,8 +107,11 @@ class nEllipsoid(RiemannianManifold):
         dist = self.dist(x,y)
         val = y-dot*x
         
-        return self.params*dist*val/jnp.linalg.norm(val)
-    
-    
+        norm_val = jnp.linalg.norm(val)
+        
+        return lax.cond(norm_val < 1e-6,
+                        lambda *_: jnp.zeros_like(x, dtype=x.dtype),
+                        lambda *_: self.params*dist*val/norm_val,
+                        )
     
     

@@ -224,7 +224,7 @@ class GEORCE(ABC):
         
         us_hat = self.update_us(gs_inv, mus)
 
-        tau = self.line_search(zs, us_hat, us)
+        tau = self.line_search((zs,), us_hat, us)
 
         us = tau*us_hat+(1.-tau)*us
         zs = self.z0+jnp.cumsum(us[:-1], axis=0)

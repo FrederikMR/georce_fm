@@ -136,7 +136,7 @@ class GEORCE(ABC):
         mut = self.unconstrained_opt(ht, gt, gt_inv)
 
         ut_hat = -0.5*jnp.einsum('tij,tj->ti', gt_inv, mut)
-        tau = self.line_search(zt, ut_hat, ut)
+        tau = self.line_search((zt,), ut_hat, ut)
 
         ut = tau*ut_hat+(1.-tau)*ut
         zt = self.z0+jnp.cumsum(ut[:-1], axis=0)
@@ -164,7 +164,7 @@ class GEORCE(ABC):
         mut = self.unconstrained_opt(ht, gt, gt_inv)
 
         ut_hat = -0.5*jnp.einsum('tij,tj->ti', gt_inv, mut)
-        tau = self.line_search(zt, ut_hat, ut)
+        tau = self.line_search((zt,), ut_hat, ut)
 
         ut = tau*ut_hat+(1.-tau)*ut
         zt = self.z0+jnp.cumsum(ut[:-1], axis=0)

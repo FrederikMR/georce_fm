@@ -80,7 +80,7 @@ class Backtracking(ABC):
     
     def curvature_condition(self, x_new:Array, obj:Array, alpha:Array, *args)->bool:
         
-        grad_val = self.grad_fun(x_new, *args)
+        grad_val = self.grad_fun(*x_new, *args)
         val0 = jnp.dot(grad_val, self.pk)
         val1 = self.c2*jnp.dot(self.pk, self.grad0)
         
@@ -88,7 +88,7 @@ class Backtracking(ABC):
     
     def strong_curvature_condition(self, x_new:Array, obj:Array, alpha:Array, *args)->bool:
         
-        grad_val = self.grad_fun(x_new, *args)
+        grad_val = self.grad_fun(*x_new, *args)
         val0 = jnp.dot(grad_val, self.pk)
         val1 = self.c2*jnp.dot(self.pk, self.grad0)
         
@@ -96,15 +96,15 @@ class Backtracking(ABC):
     
     def wolfe_condition(self, x_new:Array, obj:Array, alpha:Array, *args)->bool:
         
-        armijo = self.armijo_condition(x_new, obj, alpha, *args)
-        curvature = self.curvature_condition(x_new, obj, alpha, *args)
+        armijo = self.armijo_condition(*x_new, obj, alpha, *args)
+        curvature = self.curvature_condition(*x_new, obj, alpha, *args)
         
         return armijo & curvature
     
     def strong_wolfe_condition(self, x_new:Array, obj:Array, alpha:Array, *args)->bool:
         
-        armijo = self.armijo_condition(x_new, obj, alpha, *args)
-        curvature = self.strong_curvature_condition(x_new, obj, alpha, *args)
+        armijo = self.armijo_condition(*x_new, obj, alpha, *args)
+        curvature = self.strong_curvature_condition(*x_new, obj, alpha, *args)
             
         return armijo & curvature
     
@@ -124,7 +124,7 @@ class Backtracking(ABC):
         
         alpha, idx, *args = carry
         
-        x_new = self.update_fun(self.x, alpha, *args)
+        x_new = self.update_fun(*self.x, alpha, *args)
         obj = self.obj_fun(*x_new, *args)
         
         bool_val = self.condition(x_new, obj, alpha, *args)
@@ -145,10 +145,76 @@ class Backtracking(ABC):
                  )->Array:
         
         self.x = x
-        self.obj0 = self.obj_fun(x,*args)
-        grad_val = self.grad_fun(x,*args)
+        self.obj0 = self.obj_fun(*x,*args)
+        grad_val = self.grad_fun(*x,*args)
         self.pk = -grad_val
         self.grad0 = grad_val
+        
+        alpha, *_ = lax.while_loop(self.cond_fun,
+                                   self.update_alpha,
+                                   init_val = (self.alpha, 0, *args)
+                                   )
+        
+        return alpha
+    
+#%% Backtracking Line Search
+
+class NaiveBacktracking(ABC):
+    def __init__(self,
+                 obj_fun:Callable[[Array,...], Array],
+                 update_fun:Callable[[Array, Array,...], Array],
+                 alpha:float=1.0,
+                 rho:float=0.9,
+                 max_iter:int=100,
+                 epsilon:float=1e-4,
+                 )->None:
+        #https://optimization.cbe.cornell.edu/index.php?title=Line_search_methods
+        
+        self.obj_fun = obj_fun
+        self.update_fun = update_fun
+        
+        self.alpha = alpha
+        self.rho = rho
+        self.max_iter = max_iter
+        self.epsilon = epsilon
+        
+        self.x = None
+        self.obj0 = None
+        
+        return
+    
+    def naive_condition(self, x_new:Array, obj:Array, alpha:Array, *args)->bool:
+        
+        return obj>self.obj0
+    
+    def cond_fun(self, 
+                 carry:Tuple[Array, int],
+                 )->Array:
+        
+        alpha, idx, *args = carry
+        
+        x_new = self.update_fun(*self.x, alpha, *args)
+        obj = self.obj_fun(*x_new, *args)
+        
+        bool_val = self.naive_condition(x_new, obj, alpha, *args)
+        
+        return (bool_val) & (idx < self.max_iter)
+    
+    def update_alpha(self,
+                     carry:Tuple[Array, int]
+                     )->Array:
+        
+        alpha, idx, *_ = carry
+        
+        return (self.rho*alpha, idx+1, *_)
+    
+    def __call__(self, 
+                 x:Array,
+                 *args,
+                 )->Array:
+        
+        self.x = x
+        self.obj0 = self.obj_fun(*x,*args) + self.epsilon
         
         alpha, *_ = lax.while_loop(self.cond_fun,
                                    self.update_alpha,

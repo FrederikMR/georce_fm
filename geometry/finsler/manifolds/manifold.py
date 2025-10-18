@@ -79,7 +79,7 @@ class FinslerManifold(ABC):
 
         integrand = vmap(lambda g,dg: self.F(g,dg)**2)(gamma[:-1], dgamma)
 
-        return jnp.trapz(integrand, dx=dt)
+        return jnp.trapezoid(integrand, dx=dt)
     
     def length(self,
                gamma:Array,
@@ -91,7 +91,7 @@ class FinslerManifold(ABC):
 
         integrand = vmap(lambda g,dg: self.F(g,dg))(gamma[:-1],dgamma)
             
-        return jnp.trapz(integrand, dx=dt)
+        return jnp.trapezoid(integrand, dx=dt)
     
     def length_frechet(self, 
                        zt:Array,
@@ -132,4 +132,17 @@ class FinslerManifold(ABC):
         val3 = self.F(zt[-1],term3)
         
         return val1+jnp.sum(val2)+val3
+    
+    def indicatrix(self,
+                   z:Array,
+                   N_points:int=100,
+                   *args,
+                   )->Array:
+        
+        theta = jnp.linspace(0.,2*jnp.pi,N_points)
+        u = jnp.vstack((jnp.cos(theta), jnp.sin(theta))).T
+        
+        norm = vmap(self.F, in_axes=(None, 0))(z,u)
+        
+        return jnp.einsum('ij,i->ij', u, 1./norm)
     

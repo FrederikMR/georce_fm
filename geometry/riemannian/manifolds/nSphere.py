@@ -40,28 +40,42 @@ class nSphere(nEllipsoid):
         
         norm = jnp.linalg.norm(v)
         
-        return (jnp.cos(norm*t)*x+jnp.sin(norm*t)*v/norm)*self.params
+        return lax.cond(norm < 1e-6,
+                        lambda *_: x,
+                        lambda *_: (jnp.cos(norm*t)*x+jnp.sin(norm*t)*v/norm)*self.params,
+                        )
     
     def Geodesic(self,
-                 x:Array,
-                 y:Array,
+                 z0:Array,
+                 zN:Array,
                  t_grid:Array=None,
                  )->Array:
         
         if t_grid is None:
-            t_grid = jnp.linspace(0.,1.,99, endpoint=False)[1:]
+            t_grid = jnp.linspace(0.,1.,99, endpoint=False)[1:].reshape(-1,1)
+        else:
+            t_grid = t_grid.reshape(-1,1)
         
-        x = self.f(x)
-        y = self.f(y)
+        shape = z0.shape
         
-        x_s = x/self.params
-        y_s = y/self.params
+        z0 = z0.reshape(-1)
+        zN = zN.reshape(-1)
         
-        v = self.Log(x,y)
+        z0_norm = jnp.linalg.norm(z0)
+        zN_norm = jnp.linalg.norm(zN)
+        dot_product = jnp.dot(z0, zN)
+        theta = jnp.arccos(dot_product/(z0_norm*zN_norm))
         
-        gamma = self.params*vmap(lambda t: self.Exp(x_s, v,t))(t_grid)
+        sin_theta = jnp.sin(theta)
         
-        return jnp.vstack((x,gamma,y))
+        curve = lax.cond(jnp.abs(sin_theta) < 1e-6,
+                         lambda *_: z0+jnp.zeros((len(t_grid), *shape), dtype=z0.dtype),
+                         lambda *_: ((z0*jnp.sin((1.-t_grid)*theta) + zN*jnp.sin(t_grid*theta))/sin_theta),
+                         )
+        
+        curve = jnp.vstack((z0, curve, zN))
+        
+        return curve.reshape(-1, *shape)
     
     
     

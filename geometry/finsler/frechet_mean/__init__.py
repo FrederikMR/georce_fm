@@ -9,6 +9,7 @@ Created on Sat Dec 28 16:19:02 2024
 #%% Modules
 
 from .georce_fm import GEORCE_FM
+from .georce_fm import GEORCE_FM_EndPoint
 from .georce_ada_fm import GEORCE_AdaFM
 
 from .jax_optimization import JAXOptimization

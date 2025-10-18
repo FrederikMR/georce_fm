@@ -491,6 +491,7 @@ class GEORCE_FM_Step(ABC):
     
     def update_xt(self,
                   zt:Array,
+                  z_mu_new:Array,
                   alpha:Array,
                   z_mu:Array,
                   z_mu_hat:Array,
@@ -520,7 +521,7 @@ class GEORCE_FM_Step(ABC):
         mut = self.curve_update(z_mu_hat, g_cumsum, gt_inv, ginv_sum_inv, ht)
 
         ut_hat = -0.5*jnp.einsum('k,ktij,ktj->kti', 1./self.wi, gt_inv, mut)
-        tau = self.line_search(zt, z_mu, z_mu_hat, ut_hat, ut)
+        tau = self.line_search((zt, z_mu), z_mu, z_mu_hat, ut_hat, ut)
 
         ut = tau*ut_hat+(1.-tau)*ut
         z_mu = tau*z_mu_hat+(1.-tau)*z_mu

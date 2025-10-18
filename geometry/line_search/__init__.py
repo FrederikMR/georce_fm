@@ -8,5 +8,5 @@ Created on Mon Jun 24 11:19:46 2024
 
 #%% Imports
 
-from .backtracking import Backtracking
+from .backtracking import Backtracking, NaiveBacktracking
 from .bisection import Bisection

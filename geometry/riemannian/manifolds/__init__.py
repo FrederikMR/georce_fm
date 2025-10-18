@@ -17,6 +17,7 @@ from .HyperbolicParaboloid import HyperbolicParaboloid
 from .nParaboloid import nParaboloid
 from .nSphere import nSphere
 from .nEllipsoid import nEllipsoid
+from .S2 import S2
 from .nEuclidean import nEuclidean
 from .T2 import T2
 from .information_geometry import FisherRaoGeometry

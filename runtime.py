@@ -54,6 +54,11 @@ from geometry.lorentz.frechet_mean_free import JAXOptimization as LJAXOptimizati
 from geometry.lorentz.frechet_mean_free import JAXAdaOptimization as LJAXAdaOptimization
 from geometry.lorentz.frechet_mean_free import ScipyOptimization as LScipyOptimization
 
+
+from geometry.riemannian.frechet_mean import GEORCE_ExactFM as RGEORCE_ExactFM
+from geometry.riemannian.frechet_mean import RGD, RGD_LineSearch
+from geometry.riemannian.frechet_mean import KarcherFlow as RKarcherFlow
+
 #%% Args Parser
 
 def parse_args():
@@ -61,19 +66,19 @@ def parse_args():
     # File-paths
     parser.add_argument('--manifold', default="Sphere",
                         type=str)
-    parser.add_argument('--geometry', default="Finsler",
+    parser.add_argument('--geometry', default="Lorentz",
                         type=str)
-    parser.add_argument('--dim', default=2,
+    parser.add_argument('--dim', default=10,
                         type=int)
     parser.add_argument('--batch_size', default=0.1,
                         type=float)
-    parser.add_argument('--N_data', default=1000,
+    parser.add_argument('--N_data', default=100,
                         type=int)
     parser.add_argument('--T', default=100,
                         type=int)
     parser.add_argument('--v0', default=1.5,
                         type=float)
-    parser.add_argument('--method', default="GEORCE_AdaFM",
+    parser.add_argument('--method', default="GEORCE_FM",
                         type=str)
     parser.add_argument('--jax_lr_rate', default=0.01,
                         type=float)
@@ -163,6 +168,38 @@ def estimate_lorentz(FrechetMean, Geodesic, z_obs, M):
     method['std_time'] = jnp.std(timing)
     method['sum_geodesic_dist'] = sum_geodesic_dist
     method['grad_norm'] = jnp.linalg.norm(grad.reshape(-1))
+    
+    return method
+
+#%% Timing
+
+def estimate_exact_method(FrechetMean, z_obs, M):
+    
+    args = parse_args()
+    print("Computing method...")
+    method = {} 
+    z_mu, grad, idx = FrechetMean(z_obs)
+    print("\t-Estimate Computed")
+    timing = []
+    timing = timeit.repeat(lambda: FrechetMean(z_obs)[0].block_until_ready(), 
+                           number=args.number_repeats, 
+                           repeat=args.timing_repeats)
+    print("\t-Timing Computed")
+    timing = jnp.stack(timing)
+    
+    x_obs = vmap(M.f)(z_obs)
+    x_mu = M.f(z_mu)
+
+    sum_geodesic_dist = jnp.sum(vmap(M.dist, in_axes=(0,None))(x_obs, x_mu)**2)
+    print("\t-Geodesics computed")
+    
+    method['mu'] = z_mu
+    method['iterations'] = idx
+    method['max_iter'] = args.max_iter
+    method['tol'] = args.tol
+    method['mu_time'] = jnp.mean(timing)
+    method['std_time'] = jnp.std(timing)
+    method['sum_geodesic_dist'] = sum_geodesic_dist
     
     return method
 
@@ -582,6 +619,80 @@ def lorentz_runtime()->None:
     print(jnp.mean(z_obs, axis=0))
         
     return
+
+#%% Riemannian Run Time code
+
+def exact_runtime()->None:
+    
+    args = parse_args()
+    
+    save_path = ''.join((args.save_path, f'exact/{args.manifold}/'))
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        
+    save_path = ''.join((save_path, args.method, 
+                         f'_{args.manifold}', 
+                         f'_d={args.dim}',
+                         f'_batch={args.batch_size}'.replace('.', ''),
+                         '.pkl',
+                         ))
+    if os.path.exists(save_path):
+        os.remove(save_path)
+    
+    z_obs, M, rho, parallel = load_manifold(args.manifold, 
+                                            args.dim,
+                                            N_data=args.N_data,
+                                            )
+    
+    methods = {}
+    if args.method == "GEORCE_FM":
+        FrechetMean = RGEORCE_ExactFM(M=M,
+                                      Geodesic = lambda a,b,T: vmap(M.invf)(M.Geodesic(M.f(a),
+                                                                   M.f(b), 
+                                                                   jnp.linspace(0.,1.,T-1, endpoint=False)[1:].reshape(-1,1))[1:-1]),
+                                      init_fun=None,
+                                      T=args.T,
+                                      max_iter=args.max_iter,
+                                      tol = args.tol,
+                                      line_search_params={'rho': rho},
+                                      )
+        methods['GEORCE_FM'] = estimate_exact_method(jit(FrechetMean), z_obs, M)
+        
+    elif args.method == "RGD":
+        FrechetMean = RGD(M=M,
+                          max_iter = args.max_iter,
+                          tol=args.tol, 
+                          lr_rate=0.01,
+                          )
+        
+        methods['RGD'] = estimate_exact_method(jit(FrechetMean), z_obs, M)
+    elif args.method == "RGD_LineSearch":
+        FrechetMean = RGD_LineSearch(M=M,
+                                     max_iter = args.max_iter,
+                                     tol=args.tol, 
+                                     line_search_params={'rho': rho},
+                                     )
+        
+        methods['RGD_LineSearch'] = estimate_exact_method(jit(FrechetMean), z_obs, M)
+        
+    elif args.method == "KarcherFlow":
+        FrechetMean = RKarcherFlow(M=M,
+                                  max_iter = args.max_iter,
+                                  tol=args.tol,
+                                  order=1,
+                                  )
+        
+        methods['KarcherFlow'] = estimate_exact_method(jit(FrechetMean), z_obs, M)
+        
+    else:
+        raise ValueError(f"Method, {args.method}, not defined!")
+    save_times(methods, save_path)
+    
+    print(methods)
+    print(jnp.mean(z_obs, axis=0))
+    print(jnp.max(z_obs))
+    
+    return
     
 #%% main
 
@@ -595,5 +706,7 @@ if __name__ == '__main__':
         finsler_runtime()
     elif args.geometry == "Lorentz":
         lorentz_runtime()
+    elif args.geometry == "Exact":
+        exact_runtime()
     else:
         raise ValueError("Invalid geometry for runtime comparison.")

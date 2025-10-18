@@ -374,6 +374,7 @@ class GEORCE_FM(ABC):
     
     def update_xs(self,
                   zs:Array,
+                  z_mu_new:Array,
                   alpha:Array,
                   z_mu:Array,
                   z_mu_hat:Array,
@@ -417,7 +418,7 @@ class GEORCE_FM(ABC):
         mus = self.curve_update(z_mu_hat, g_cumsum, gs_inv, ginv_sum_inv, hs, pis, Lus)
 
         us_hat = -0.5*jnp.einsum('k,ktij,ktj->kti', 1./self.wi, gs_inv, mus)
-        tau = self.line_search(zs, z_mu, z_mu_hat, us_hat, us)
+        tau = self.line_search((zs, z_mu), z_mu, z_mu_hat, us_hat, us)
 
         us = tau*us_hat+(1.-tau)*us
         z_mu = tau*z_mu_hat+(1.-tau)*z_mu
@@ -468,7 +469,7 @@ class GEORCE_FM(ABC):
         mus = self.curve_update(z_mu_hat, g_cumsum, gs_inv, ginv_sum_inv, hs, pis, Lus)
 
         us_hat = -0.5*jnp.einsum('k,ktij,ktj->kti', 1./self.wi, gs_inv, mus)
-        tau = self.line_search(zs, z_mu, z_mu_hat, us_hat, us)
+        tau = self.line_search((zs, z_mu), z_mu, z_mu_hat, us_hat, us)
 
         us = tau*us_hat+(1.-tau)*us
         z_mu = tau*z_mu_hat+(1.-tau)*z_mu
