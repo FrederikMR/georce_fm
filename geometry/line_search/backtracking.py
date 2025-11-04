@@ -166,7 +166,6 @@ class NaiveBacktracking(ABC):
                  alpha:float=1.0,
                  rho:float=0.9,
                  max_iter:int=100,
-                 epsilon:float=1e-4,
                  )->None:
         #https://optimization.cbe.cornell.edu/index.php?title=Line_search_methods
         
@@ -176,7 +175,6 @@ class NaiveBacktracking(ABC):
         self.alpha = alpha
         self.rho = rho
         self.max_iter = max_iter
-        self.epsilon = epsilon
         
         self.x = None
         self.obj0 = None
@@ -214,7 +212,7 @@ class NaiveBacktracking(ABC):
                  )->Array:
         
         self.x = x
-        self.obj0 = self.obj_fun(*x,*args) + self.epsilon
+        self.obj0 = self.obj_fun(*x,*args)
         
         alpha, *_ = lax.while_loop(self.cond_fun,
                                    self.update_alpha,
