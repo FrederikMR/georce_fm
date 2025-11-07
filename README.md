@@ -37,6 +37,8 @@ The following shows the structure of the code. All general implementations of ge
     ├── vae_frechet.py                     # Plotting of the figures for the VAEs
     └── README.md
 
+The remaining files and folders are used for submitting code to a GPU and various tests.
+
 ## Reproducing Experiments
 
 All experiments can be re-produced by running the notebooks and the runtime.py package for the given manifold, hyper-parameters and optimization method.
