@@ -1,7 +1,7 @@
-# Simultaneous Optimization of Geodesics and Fréchet Means
-This note book shows how to jointly estimate geodesics and the Fréchet mean to reduce the computational complexity of computing the Fréchet mean on non-trivial Riemannian and Finslerian manifolds.
-
+# GEORCE-FM: Simultaneous Optimization of Geodesics and Fréchet Means
 ![conceptual_riemannian_frechet_mod2.pdf](https://github.com/user-attachments/files/23414078/conceptual_riemannian_frechet_mod2.pdf)
+
+This note book shows how to jointly estimate geodesics and the Fréchet mean to reduce the computational complexity of computing the Fréchet mean on non-trivial Riemannian and Finslerian manifolds.
 
 ## Installation and Requirements
 
